@@ -70,7 +70,7 @@ xvfb-run npm run desktop:smoke   # verifica headless dell'app desktop
 cd desktop && npm run dist:linux # installer locali (dist:win / dist:mac sui rispettivi sistemi) → desktop/release/
 ```
 
-Release: versione in `desktop/package.json` + note in `docs/releases/vX.Y.Z.md`, poi tag `vX.Y.Z` (o workflow *Release* manuale con il tag). `.github/workflows/release.yml`: verifica → installer Linux (AppImage, deb), Windows (NSIS), macOS (dmg arm64/x64, firma ad hoc) con smoke test dell'app impacchettata → GitHub Release con SHA256SUMS. Installer non firmati.
+Release: versione in `desktop/package.json` + note in `docs/releases/vX.Y.Z.md`, poi tag `vX.Y.Z` (o workflow *Release* manuale con il tag). `.github/workflows/release.yml`: verifica → installer Windows (NSIS) con smoke test dell'app impacchettata → GitHub Release con SHA256SUMS. Si pubblica solo Windows (Linux/macOS sono configurati in `electron-builder.config.cjs` ma esclusi dalla matrice). Installer non firmato. Electron viene scaricato da `desktop/fetch-electron.mjs` (tentativi ripetuti + verifica SHA-256) e i download sono in cache tra le esecuzioni.
 
 Variabili: `PERSONA_DATA_DIR` (default `./data`), `PERSONA_PORT` (4317), `PERSONA_HOST` (127.0.0.1), `PERSONA_LMSTUDIO_URL`, `OPENAI_API_KEY`, `PERSONA_ALLOWED_HOSTS`. Vedi `.env.example`.
 
@@ -88,6 +88,6 @@ Variabili: `PERSONA_DATA_DIR` (default `./data`), `PERSONA_PORT` (4317), `PERSON
 
 Implementato e testato: fasi 1–6 — fondazioni, personaggi, memoria, scenari, simulazioni (turni manuali, rotazione, regia automatica), recupero semantico ibrido con embedding locali, PDF nella base di conoscenza, export/import di personaggi e scenari, backup/restore, app desktop Electron (Linux, headless), interfaccia in 6 lingue, indicatore di disponibilità del motore. 66 test server + 20 test web; smoke E2E Playwright (17 passaggi) e smoke desktop con provider mock.
 
-Installer desktop: generati e verificati (smoke test dell'app impacchettata) dal workflow di release su Linux, Windows e macOS.
+Installer desktop: le release pubblicano l'installer Windows, generato e verificato (smoke test dell'app impacchettata) dal workflow di release.
 
 Non verificato: LM Studio reale (chat ed embedding testati contro un server finto compatibile). Non implementati: firma del codice, aggiornamento automatico, OCR. Traduzioni fr/es/de/pt non revisionate da madrelingua. Dettagli: `README.md` § Limiti noti e `docs/architecture.md`.

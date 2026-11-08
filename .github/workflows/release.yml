@@ -4,8 +4,10 @@
 #   - push di un tag "vX.Y.Z" (deve coincidere con la versione di desktop/package.json), oppure
 #   - manuale (Actions → Release → Run workflow) indicando il tag: viene creato alla pubblicazione.
 #
-# Flusso: verifica (typecheck, test, build del frontend) → installer per Linux, Windows e macOS
-# con smoke test dell'app impacchettata su ciascun sistema → release con installer e SHA256SUMS.
+# Flusso: verifica (typecheck, test, build del frontend) → installer Windows con smoke test
+# dell'app impacchettata → release con installer e SHA256SUMS.
+# Le release pubblicano solo la versione Windows; electron-builder.config.cjs contiene anche le
+# destinazioni Linux e macOS: per includerle basta aggiungere le voci corrispondenti alla matrice.
 name: Release
 
 on:
@@ -66,15 +68,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            platform: linux
-            electron: linux-x64
           - os: windows-latest
             platform: win
             electron: win32-x64
-          - os: macos-latest
-            platform: mac
-            electron: darwin-arm64 darwin-x64
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     defaults:

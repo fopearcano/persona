@@ -51,7 +51,7 @@ Apri **`http://127.0.0.1:4317`**: il backend serve sia le API sia l'interfaccia.
 
 ### Applicazione desktop (installer)
 
-Gli installer per Windows, macOS e Linux sono pubblicati nelle **[Releases](https://github.com/fopearcano/persona/releases)** (istruzioni di installazione nelle note di ciascuna release). Non sono firmati: al primo avvio Windows e macOS mostrano un avviso.
+L'installer per **Windows** è pubblicato nelle **[Releases](https://github.com/fopearcano/persona/releases)** (istruzioni nelle note della release). Non è firmato: al primo avvio Windows mostra un avviso di SmartScreen. Su Linux e macOS l'app si avvia dai sorgenti (sotto); la configurazione degli installer per questi sistemi è già presente ma non viene pubblicata.
 
 ### Applicazione desktop dai sorgenti (Electron)
 
@@ -70,7 +70,7 @@ Installer in locale (electron-builder, risultato in `desktop/release/`), dopo `n
 cd desktop && npm run dist:linux   # oppure dist:win su Windows, dist:mac su macOS
 ```
 
-**Pubblicare una release**: aggiornare la versione in `desktop/package.json`, scrivere le note in `docs/releases/vX.Y.Z.md`, poi creare il tag `vX.Y.Z` (oppure avviare manualmente il workflow *Release* indicando il tag). Il workflow `.github/workflows/release.yml` esegue typecheck, test e build, crea gli installer su Linux, Windows e macOS, verifica ciascuna app impacchettata con uno smoke test e pubblica la release con i file e `SHA256SUMS.txt`.
+**Pubblicare una release**: aggiornare la versione in `desktop/package.json`, scrivere le note in `docs/releases/vX.Y.Z.md`, poi creare il tag `vX.Y.Z` (oppure avviare manualmente il workflow *Release* indicando il tag). Il workflow `.github/workflows/release.yml` esegue typecheck, test e build, crea l'installer Windows, verifica l'app impacchettata con uno smoke test e pubblica la release con l'installer e `SHA256SUMS.txt`. Per pubblicare anche Linux e macOS basta aggiungere le voci corrispondenti alla matrice del workflow.
 
 Il database viene creato in `./data/persona.db` e le migrazioni vengono applicate automaticamente all'avvio. Per cambiare cartella o porta: variabili `PERSONA_DATA_DIR`, `PERSONA_PORT` (vedi `.env.example`; un file `.env` nella root o in `server/` viene letto automaticamente).
 
@@ -157,7 +157,7 @@ Monorepo npm: `shared/` (tipi e schemi), `server/` (Fastify, SQLite, Drizzle, se
 - La qualità dell'estrazione automatica di memorie dipende dalla capacità del modello di produrre JSON valido; in caso contrario non viene creata alcuna memoria (nessuna corruzione dei dati).
 - Il conteggio dei token è una stima (circa 3,5 caratteri per token); impostare la lunghezza del contesto con margine.
 - Le traduzioni dell'interfaccia in francese, spagnolo, tedesco e portoghese non sono state riviste da madrelingua.
-- Installer non firmati (avvisi di Windows SmartScreen e Gatekeeper su macOS) e senza aggiornamento automatico. Su Ubuntu 24.04 e successive l'AppImage può richiedere `--no-sandbox` (meglio il `.deb`).
+- Le release pubblicano solo l'installer Windows, non firmato (avviso di SmartScreen) e senza aggiornamento automatico.
 - PDF: viene estratto solo il testo selezionabile (nessun OCR per i documenti scansionati).
 - La regia automatica dei turni dipende dalla capacità del modello di rispondere in JSON; in caso contrario si ripiega sulla rotazione.
 - La competenza linguistica e specialistica del personaggio è simulata ed è limitata dalle reali capacità del modello scelto.
