@@ -1,11 +1,11 @@
 import { BookUser, Brain, Drama, MessagesSquare, Orbit, Settings, UserPlus, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { NavLink } from 'react-router';
+import { NavLink, useLocation } from 'react-router';
 import { cx, Toasts } from './ui';
 
 const NAV = [
-  { to: '/characters', key: 'characters', icon: Users, end: true },
+  { to: '/characters', key: 'characters', icon: Users, end: false },
   { to: '/characters/new', key: 'creator', icon: UserPlus, end: true },
   { to: '/dialogue', key: 'dialogue', icon: MessagesSquare },
   { to: '/scenarios', key: 'scenarios', icon: Orbit },
@@ -16,6 +16,7 @@ const NAV = [
 
 export function Layout({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
+  const { pathname } = useLocation();
   return (
     <div className="flex h-full">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-panel focus:p-2">
@@ -36,12 +37,14 @@ export function Layout({ children }: { children: ReactNode }) {
                 to={to}
                 end={'end' in rest ? rest.end : false}
                 title={t(`nav.${key}`)}
-                className={({ isActive }) =>
-                  cx(
+                className={({ isActive }) => {
+                  // "Personaggi" resta attivo nell'editor, ma non nella creazione di un nuovo personaggio.
+                  const active = key === 'characters' ? isActive && pathname !== '/characters/new' : isActive;
+                  return cx(
                     'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm',
-                    isActive ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-panel-2 hover:text-text',
-                  )
-                }
+                    active ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-panel-2 hover:text-text',
+                  );
+                }}
               >
                 <Icon className="size-4 shrink-0" aria-hidden />
                 <span className="hidden md:inline">{t(`nav.${key}`)}</span>
