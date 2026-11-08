@@ -79,6 +79,8 @@
     "invalid_import": "File di importazione non valido.",
     "invalid_backup": "Backup non valido: {{message}}",
     "internal": "Errore interno: {{message}}",
+    "invalid_pdf": "PDF non valido: {{message}}",
+    "embeddings_unsupported": "Il provider selezionato non supporta gli embedding.",
     "network": "Backend non raggiungibile. È in esecuzione?",
     "generic": "Si è verificato un errore."
   },
@@ -180,7 +182,8 @@
     },
     "turnMode": {
       "manual": "Turni scelti dall'autore",
-      "round-robin": "Rotazione automatica"
+      "round-robin": "Rotazione automatica",
+      "auto": "Regia automatica (LLM)"
     },
     "characterStatus": {
       "active": "Attivo",
@@ -313,7 +316,8 @@
       "title": "Base di conoscenza",
       "help": "Documenti locali indicizzati con ricerca lessicale (SQLite FTS5). Vengono recuperati per pertinenza, trattati come dati non attendibili e presentati al modello con il loro statuto epistemico.",
       "add": "Aggiungi fonte",
-      "uploadFile": "Carica file .txt / .md",
+      "uploadFile": "Carica file .txt / .md / .pdf",
+      "pdfExtracted": "Testo estratto da {{count}} pagine: verificalo prima di salvare.",
       "sourceTitle": "Titolo",
       "kind": "Tipo",
       "sourceRef": "Riferimento (URL, citazione)",
@@ -326,7 +330,7 @@
       "searchPlaceholder": "Scrivi una domanda…",
       "empty": "Nessun documento.",
       "saveFirst": "Salva il personaggio per aggiungere documenti.",
-      "pdfLater": "Estrazione da PDF prevista in una prossima versione."
+      "pdfNote": "Dai PDF viene estratto solo il testo selezionabile (nessun OCR per i documenti scansionati)."
     },
     "model": {
       "title": "Motore LLM del personaggio",
@@ -419,7 +423,12 @@
     "reasoning": "Ragionamento del modello",
     "generatedNote": "Le battute generate non sono dati canonici dell'identità.",
     "superseded": "Versione sostituita",
-    "inspector": "Pannello di ispezione"
+    "inspector": "Pannello di ispezione",
+    "turnMode": "Turni",
+    "autoTurns": "Avanza ×{{count}}",
+    "autoTurnsHelp": "Genera più turni consecutivi secondo la gestione dei turni",
+    "recordEvent": "Registra come evento dello scenario",
+    "eventRecorded": "Evento aggiunto allo scenario"
   },
   "inspector": {
     "tabs": {
@@ -465,6 +474,10 @@
       "history": "Cronologia"
     },
     "memoriesInScope": "Memorie nel perimetro di questa conversazione",
+    "retrievalHybrid": "Recupero ibrido: lessicale + semantico ({{model}})",
+    "retrievalLexical": "Recupero lessicale (FTS5)",
+    "semanticError": "Recupero semantico non disponibile: {{error}}",
+    "turnSelection": "Scelta del turno",
     "manageMemories": "Gestisci nella pagina Memoria"
   },
   "scenarios": {
@@ -523,7 +536,15 @@
     "created": "Scenario creato",
     "noMemories": "Nessuna memoria contestuale.",
     "languageNone": "Come preferenze",
-    "participantSaved": "Partecipante aggiornato"
+    "participantSaved": "Partecipante aggiornato",
+    "export": "Esporta scenario",
+    "exportSessions": "Includi sessioni e simulazioni",
+    "exportHelp": "Il file contiene lo scenario, le identità dei partecipanti, relazioni, eventi, memorie contestuali e, se richiesto, le sessioni.",
+    "import": "Importa scenario",
+    "importReuse": "Riusa i personaggi già presenti (stesso identificativo)",
+    "importNew": "Importa sempre i personaggi come nuove identità",
+    "importSessions": "Includi sessioni e simulazioni",
+    "importDone": "Importato «{{title}}»: {{imported}} personaggi nuovi, {{reused}} riutilizzati, {{sessions}} sessioni, {{memories}} memorie contestuali."
   },
   "simulations": {
     "title": "Simulazioni",
@@ -594,7 +615,10 @@
     "score": "punteggio",
     "coreAlways": "Memorie core (sempre incluse)",
     "scoped": "Memorie pertinenti",
-    "lexicalNote": "Recupero lessicale (FTS5): non riconosce sinonimi né traduzioni tra lingue diverse.",
+    "lexicalNote": "Recupero lessicale (FTS5): da solo non riconosce sinonimi né traduzioni. Attiva il recupero semantico nelle Impostazioni per cercare per significato, anche tra lingue diverse.",
+    "modeHybrid": "Recupero ibrido (lessicale + semantico)",
+    "modeLexical": "Solo recupero lessicale",
+    "semantic": "semantica",
     "deleteConfirm": "Eliminare definitivamente questa memoria?",
     "proposedHelp": "Le memorie proposte non vengono usate finché l'autore non le approva.",
     "created": "Memoria creata",
@@ -671,6 +695,22 @@
     "database": "Database",
     "schemaVersion": "Migrazioni applicate",
     "stats": "{{characters}} personaggi · {{memories}} memorie · {{conversations}} conversazioni · {{messages}} messaggi · {{scenarios}} scenari",
-    "localOnly": "Tutti i dati restano su questo computer. Nessun account, nessuna telemetria."
+    "localOnly": "Tutti i dati restano su questo computer. Nessun account, nessuna telemetria.",
+    "embeddings": "Recupero semantico (embedding locali)",
+    "embeddingsHelp": "Affianca alla ricerca lessicale una ricerca per significato, anche tra lingue diverse, con un modello di embedding locale (ad esempio un modello multilingue come bge-m3 o multilingual-e5 caricato in LM Studio). Se il servizio non risponde, PERSONA torna automaticamente al solo recupero lessicale.",
+    "embeddingsEnabled": "Attiva il recupero semantico",
+    "embeddingsEngine": "Endpoint",
+    "embeddingsEngineDefault": "Motore predefinito",
+    "embeddingsModel": "Modello di embedding",
+    "embeddingsModelAuto": "Automatico (primo modello di embedding disponibile)",
+    "semanticWeight": "Peso semantico: {{value}}%",
+    "embeddingsTest": "Prova embedding",
+    "embeddingsTestOk": "Embedding riuscito: {{dims}} dimensioni in {{ms}} ms ({{model}})",
+    "embeddingsReindex": "Indicizza ora",
+    "embeddingsRebuild": "Ricalcola tutto",
+    "embeddingsRebuildConfirm": "Ricalcolare tutti gli embedding? Con molti dati può richiedere tempo.",
+    "embeddingsStatus": "Indicizzate {{mem}}/{{memTotal}} memorie e {{chunks}}/{{chunksTotal}} frammenti di conoscenza",
+    "embeddingsRunning": "Indicizzazione in corso…",
+    "embeddingsLastError": "Ultimo errore: {{error}}"
   }
 }

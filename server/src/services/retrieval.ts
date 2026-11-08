@@ -3,12 +3,13 @@
  *
  * Limiti dichiarati: il recupero è lessicale, non semantico. Il tokenizer unicode61
  * gestisce bene alfabeti latini, cirillici e greci, con una normalizzazione grezza
- * (prefissi) per le varianti morfologiche; NON abbina concetti tra lingue diverse
- * né segmenta testo CJK. L'interfaccia `Retriever` è pensata per affiancare in futuro
- * embedding multilingue locali.
+ * (prefissi) per le varianti morfologiche; da solo NON abbina concetti tra lingue diverse
+ * né segmenta testo CJK. Se attivati, gli embedding locali (services/embeddings.ts)
+ * aggiungono una componente semantica e il recupero diventa ibrido.
  */
 import type { EpistemicStatus, KnowledgeHit, MemoryCategory } from '@persona/shared';
 import type { AppContext } from '../context.js';
+import { semanticRelevance } from './embeddings.js';
 
 const STOPWORDS = new Set(
   [
@@ -81,6 +82,7 @@ export interface MemoryRow {
 export interface ScoredMemory extends MemoryRow {
   score: number;
   relevance: number;
+  semantic?: number;
 }
 
 /**
@@ -112,8 +114,27 @@ export function coreMemories(ctx: AppContext, characterId: string): MemoryRow[] 
     .all({ cid: characterId }) as MemoryRow[];
 }
 
-/** Memorie non-core pertinenti alla query, nel perimetro consentito, ordinate per punteggio. */
-export function searchScopedMemories(ctx: AppContext, scope: MemoryScope, queryText: string, limit = 60): ScoredMemory[] {
+export interface SemanticQuery {
+  vector: Float32Array;
+  model: string;
+  /** Peso della similarità semantica (0–1) rispetto alla pertinenza lessicale. */
+  weight: number;
+}
+
+/** Soglia minima di pertinenza semantica normalizzata per entrare tra i candidati. */
+const SEMANTIC_MIN = 0.35;
+
+/**
+ * Memorie non-core pertinenti alla query, nel perimetro consentito, ordinate per punteggio.
+ * Con `semantic` il recupero è ibrido: pertinenza = w·semantica + (1−w)·lessicale.
+ */
+export function searchScopedMemories(
+  ctx: AppContext,
+  scope: MemoryScope,
+  queryText: string,
+  limit = 60,
+  semantic: SemanticQuery | null = null,
+): ScoredMemory[] {
   const clause = scopeClause(scope);
   const params = { cid: scope.characterId, ...clause.params };
   const q = buildFtsQuery(queryText);
@@ -142,13 +163,39 @@ export function searchScopedMemories(ctx: AppContext, scope: MemoryScope, queryT
     )
     .all(params) as (MemoryRow & { rank: number })[];
 
-  const now = Date.now();
   const byId = new Map<string, ScoredMemory>();
   for (const r of normalizeRanks(matched)) byId.set(r.id, { ...r, score: 0 });
   for (const a of anchors) if (!byId.has(a.id)) byId.set(a.id, { ...a, relevance: 0, score: 0 });
+
+  let sem = new Map<string, number>();
+  if (semantic) {
+    const rows = ctx.dbm.sqlite
+      .prepare(
+        `SELECT m.id, m.embedding, m.embedding_model AS embeddingModel FROM memories m
+          WHERE m.character_id = @cid AND m.status = 'active' AND m.embedding IS NOT NULL AND ${clause.sql}`,
+      )
+      .all(params) as { id: string; embedding: string; embeddingModel: string }[];
+    sem = semanticRelevance(ctx, semantic.vector, semantic.model, rows);
+    const missing = [...sem].filter(([id, r]) => r >= SEMANTIC_MIN && !byId.has(id)).map(([id]) => id);
+    for (let i = 0; i < missing.length; i += 500) {
+      const ids = missing.slice(i, i + 500);
+      const extra = ctx.dbm.sqlite
+        .prepare(`SELECT ${MEMORY_COLS} FROM memories m WHERE m.id IN (${ids.map(() => '?').join(',')})`)
+        .all(...ids) as MemoryRow[];
+      for (const r of extra) byId.set(r.id, { ...r, relevance: 0, score: 0 });
+    }
+  }
+
+  const now = Date.now();
   for (const m of byId.values()) {
     const ageDays = Math.max(0, (now - Date.parse(m.createdAt)) / 86_400_000);
     const recency = Math.exp(-ageDays / 45);
+    const sv = semantic ? sem.get(m.id) : undefined;
+    if (semantic && sv !== undefined) {
+      // Le memorie non ancora indicizzate restano valutate solo lessicalmente.
+      m.semantic = sv;
+      m.relevance = semantic.weight * sv + (1 - semantic.weight) * m.relevance;
+    }
     m.score = m.relevance * 0.6 + (m.importance / 5) * 0.25 + recency * 0.15 + (m.pinned ? 0.3 : 0);
   }
   return [...byId.values()].sort((a, b) => b.score - a.score);
@@ -163,25 +210,68 @@ export function touchMemories(ctx: AppContext, ids: string[]): void {
   ctx.dbm.sqlite.transaction(() => ids.forEach((id) => stmt.run({ id, ts })))();
 }
 
-export function searchKnowledge(ctx: AppContext, characterId: string, queryText: string, limit = 6): KnowledgeHit[] {
+export function searchKnowledge(
+  ctx: AppContext,
+  characterId: string,
+  queryText: string,
+  limit = 6,
+  semantic: SemanticQuery | null = null,
+): KnowledgeHit[] {
   const q = buildFtsQuery(queryText);
-  if (!q) return [];
-  try {
-    const rows = ctx.dbm.sqlite
-      .prepare(
-        `SELECT k.id AS chunkId, k.source_id AS sourceId, s.title, s.epistemic_status AS epistemicStatus,
-                s.source_ref AS sourceRef, k.content, bm25(knowledge_fts) AS rank
-           FROM knowledge_fts
-           JOIN knowledge_chunks k ON k.id = knowledge_fts.chunk_id
-           JOIN knowledge_sources s ON s.id = k.source_id
-          WHERE knowledge_fts MATCH @q AND k.character_id = @cid AND s.enabled = 1
-          ORDER BY rank LIMIT @limit`,
-      )
-      .all({ q, cid: characterId, limit }) as (Omit<KnowledgeHit, 'score'> & { rank: number })[];
-    return normalizeRanks(rows).map(({ rank: _rank, relevance, ...r }) => ({ ...r, score: relevance }));
-  } catch {
-    return [];
+  const cols = `k.id AS chunkId, k.source_id AS sourceId, s.title, s.epistemic_status AS epistemicStatus,
+                s.source_ref AS sourceRef, k.content`;
+  type Row = Omit<KnowledgeHit, 'score'> & { relevance: number };
+  const byId = new Map<string, Row>();
+  if (q) {
+    try {
+      const rows = ctx.dbm.sqlite
+        .prepare(
+          `SELECT ${cols}, bm25(knowledge_fts) AS rank
+             FROM knowledge_fts
+             JOIN knowledge_chunks k ON k.id = knowledge_fts.chunk_id
+             JOIN knowledge_sources s ON s.id = k.source_id
+            WHERE knowledge_fts MATCH @q AND k.character_id = @cid AND s.enabled = 1
+            ORDER BY rank LIMIT @limit`,
+        )
+        .all({ q, cid: characterId, limit: limit * 3 }) as (Omit<KnowledgeHit, 'score'> & { rank: number })[];
+      for (const { rank: _rank, ...r } of normalizeRanks(rows)) byId.set(r.chunkId, r);
+    } catch {
+      /* query FTS non valida: nessun risultato lessicale */
+    }
   }
+  if (!semantic) {
+    return [...byId.values()]
+      .sort((a, b) => b.relevance - a.relevance)
+      .slice(0, limit)
+      .map(({ relevance, ...r }) => ({ ...r, score: relevance }));
+  }
+  const embRows = ctx.dbm.sqlite
+    .prepare(
+      `SELECT k.id, k.embedding, k.embedding_model AS embeddingModel FROM knowledge_chunks k
+         JOIN knowledge_sources s ON s.id = k.source_id
+        WHERE k.character_id = @cid AND s.enabled = 1 AND k.embedding IS NOT NULL`,
+    )
+    .all({ cid: characterId }) as { id: string; embedding: string; embeddingModel: string }[];
+  const sem = semanticRelevance(ctx, semantic.vector, semantic.model, embRows);
+  const missing = [...sem].filter(([id, r]) => r >= SEMANTIC_MIN && !byId.has(id)).map(([id]) => id);
+  for (let i = 0; i < missing.length; i += 500) {
+    const ids = missing.slice(i, i + 500);
+    const extra = ctx.dbm.sqlite
+      .prepare(
+        `SELECT ${cols} FROM knowledge_chunks k JOIN knowledge_sources s ON s.id = k.source_id
+          WHERE k.id IN (${ids.map(() => '?').join(',')})`,
+      )
+      .all(...ids) as Omit<KnowledgeHit, 'score'>[];
+    for (const r of extra) byId.set(r.chunkId, { ...r, relevance: 0 });
+  }
+  return [...byId.values()]
+    .map(({ relevance, ...r }) => {
+      const sv = sem.get(r.chunkId);
+      return { ...r, score: sv === undefined ? relevance : semantic.weight * sv + (1 - semantic.weight) * relevance };
+    })
+    .filter((r) => r.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
 }
 
 export interface ExcerptHit {

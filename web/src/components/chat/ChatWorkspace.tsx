@@ -1,5 +1,6 @@
-import type { ContextMeta, DialogueMode, MemoryProcessingResult, Message, MessageRole, StreamEvent } from '@persona/shared';
-import { Archive, ArchiveRestore, BrainCircuit, Eye, EyeOff, PanelRight, Pencil, Send, SkipForward, Square, Trash2 } from 'lucide-react';
+import type { ContextMeta, DialogueMode, MemoryProcessingResult, Message, MessageRole, StreamEvent, TurnMode } from '@persona/shared/client';
+import { TURN_MODES } from '@persona/shared/client';
+import { Archive, ArchiveRestore, BrainCircuit, Eye, EyeOff, FastForward, PanelRight, Pencil, Send, SkipForward, Square, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
@@ -8,7 +9,7 @@ import { api, streamPost } from '../../api/client';
 import { useCharacters, useConversation, useInvalidate, useScenario } from '../../api/hooks';
 import { useUi } from '../../stores/ui';
 import { LanguageSelect } from '../LanguageSelect';
-import { Badge, Button, cx, ErrorBox, IconButton, Input, Segmented, Spinner, Textarea, useErrorText } from '../ui';
+import { Badge, Button, cx, ErrorBox, IconButton, Input, Segmented, Select, Spinner, Textarea, useErrorText } from '../ui';
 import { Inspector } from './Inspector';
 import { MessageItem, RichText } from './MessageItem';
 
@@ -49,6 +50,8 @@ export function ChatWorkspace({ conversationId, onDeleted }: { conversationId: s
   const [processing, setProcessing] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const autoRunRef = useRef(false);
+  const [autoRunning, setAutoRunning] = useState(false);
 
   useEffect(() => {
     if (conv) setMode(conv.defaultMode === 'analysis' ? 'dialogue' : conv.defaultMode);
@@ -77,7 +80,7 @@ export function ChatWorkspace({ conversationId, onDeleted }: { conversationId: s
     bottomRef.current?.scrollIntoView({ block: 'end' });
   }, [messages.length, live?.text]);
 
-  const generating = live !== null;
+  const generating = live !== null || autoRunning;
   const kind = conv?.kind ?? 'lab';
   const primaryName = conv?.characterId ? (names.get(conv.characterId) ?? '') : '';
   const metaFromHistory = useMemo(() => [...messages].reverse().find((m) => m.contextMeta)?.contextMeta ?? null, [messages]);
@@ -138,6 +141,7 @@ export function ChatWorkspace({ conversationId, onDeleted }: { conversationId: s
     const role = kind !== 'lab' && asNarrator ? 'narrator' : 'author';
     // Se l'autore scrive solo per sé nelle simulazioni manuali, nessuna generazione: niente indicatore.
     if (kind === 'simulation' && conv.turnMode === 'manual') {
+      // Turni manuali: il messaggio dell'autore non genera risposte.
       try {
         await streamPost(`/api/conversations/${conv.id}/messages`, { content, role, respond: false }, handle);
       } catch (err) {
@@ -152,6 +156,26 @@ export function ChatWorkspace({ conversationId, onDeleted }: { conversationId: s
 
   const turn = (characterId?: string) =>
     conv && runStream(`/api/conversations/${conv.id}/turn`, { characterId, directive: directive.trim() || undefined }).then(() => setDirective(''));
+
+  /** Più turni consecutivi scelti dalla gestione dei turni (rotazione o regia automatica). */
+  const advance = async (count: number) => {
+    if (!conv) return;
+    autoRunRef.current = true;
+    setAutoRunning(true);
+    try {
+      for (let i = 0; i < count && autoRunRef.current; i++) {
+        await runStream(`/api/conversations/${conv.id}/turn`, {});
+      }
+    } finally {
+      autoRunRef.current = false;
+      setAutoRunning(false);
+    }
+  };
+
+  const stop = () => {
+    autoRunRef.current = false;
+    abortRef.current?.abort();
+  };
 
   const actions = {
     onRegenerate: (m: Message) => void runStream(`/api/messages/${m.id}/regenerate`, {}),
@@ -169,6 +193,17 @@ export function ChatWorkspace({ conversationId, onDeleted }: { conversationId: s
       setInspected(m.id);
       if (!inspectorOpen) toggleInspector();
     },
+    onRecordEvent: conv?.scenarioId
+      ? async (m: Message) => {
+          try {
+            await api.post(`/api/scenarios/${conv.scenarioId}/events`, { content: m.content });
+            toast(t('chat.eventRecorded'), 'success');
+            void invalidate('scenario');
+          } catch (err) {
+            toast(errorText(err), 'error');
+          }
+        }
+      : undefined,
   };
 
   if (isLoading) return <Spinner />;
@@ -321,6 +356,22 @@ export function ChatWorkspace({ conversationId, onDeleted }: { conversationId: s
       {kind === 'simulation' && (
         <div className="border-t border-border px-4 py-2">
           <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-2">
+            <Select
+              className="w-60"
+              aria-label={t('chat.turnMode')}
+              value={conv.turnMode}
+              disabled={generating}
+              onChange={async (e) => {
+                await api.put(`/api/conversations/${conv.id}`, { turnMode: e.target.value as TurnMode });
+                await refetch();
+              }}
+            >
+              {TURN_MODES.map((m) => (
+                <option key={m} value={m}>
+                  {t(`enums.turnMode.${m}`)}
+                </option>
+              ))}
+            </Select>
             <span className="text-xs text-muted">{t('chat.turnOf')}:</span>
             {participants.map((p) => (
               <Button key={p.id} size="sm" disabled={generating} onClick={() => void turn(p.id)} title={p.role ?? undefined}>
@@ -329,6 +380,9 @@ export function ChatWorkspace({ conversationId, onDeleted }: { conversationId: s
             ))}
             <Button size="sm" variant="ghost" icon={<SkipForward className="size-3.5" />} disabled={generating} onClick={() => void turn()}>
               {t('chat.nextTurn')}
+            </Button>
+            <Button size="sm" variant="ghost" icon={<FastForward className="size-3.5" />} disabled={generating} title={t('chat.autoTurnsHelp')} onClick={() => void advance(3)}>
+              {t('chat.autoTurns', { count: 3 })}
             </Button>
             <Input className="min-w-56 flex-1" value={directive} onChange={(e) => setDirective(e.target.value)} placeholder={t('chat.directive')} aria-label={t('chat.directive')} />
           </div>
@@ -389,7 +443,7 @@ export function ChatWorkspace({ conversationId, onDeleted }: { conversationId: s
               }}
             />
             {generating ? (
-              <Button variant="danger" icon={<Square className="size-3.5" />} onClick={() => abortRef.current?.abort()}>
+              <Button variant="danger" icon={<Square className="size-3.5" />} onClick={stop}>
                 {t('chat.stop')}
               </Button>
             ) : (

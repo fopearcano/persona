@@ -366,8 +366,28 @@ export const preferencesUpdateSchema = z.object({
     })
     .partial()
     .optional(),
+  embeddings: z
+    .object({
+      enabled: z.boolean(),
+      modelConfigId: z.string().nullable(),
+      model: z.string().trim().max(500),
+      semanticWeight: z.number().min(0).max(1),
+    })
+    .partial()
+    .optional(),
 });
 export type PreferencesUpdate = z.input<typeof preferencesUpdateSchema>;
+
+export const scenarioImportOptionsSchema = z.object({
+  /** reuse = riusa i personaggi con lo stesso id se esistono; new = importa sempre copie nuove. */
+  characters: z.enum(['reuse', 'new']).default('reuse'),
+  includeSessions: z.boolean().default(true),
+});
+
+export const embeddingTestSchema = z.object({
+  modelConfigId: z.string().nullish(),
+  model: z.string().trim().max(500).optional(),
+});
 
 export const characterImportOptionsSchema = z.object({
   includeConversations: z.boolean().default(true),

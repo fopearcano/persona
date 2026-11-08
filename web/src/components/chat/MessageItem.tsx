@@ -1,5 +1,5 @@
-import type { Message, MessageRevision } from '@persona/shared';
-import { AlertTriangle, Brain, Check, Copy, History, Pencil, RefreshCw, ScanSearch, Trash2 } from 'lucide-react';
+import type { Message, MessageRevision } from '@persona/shared/client';
+import { AlertTriangle, Brain, CalendarPlus, Check, Copy, History, Pencil, RefreshCw, ScanSearch, Trash2 } from 'lucide-react';
 import { Fragment, type ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
@@ -43,6 +43,8 @@ export interface MessageActions {
   onEdited(): void;
   onDelete(m: Message): void;
   onInspect(m: Message): void;
+  /** Solo negli scenari: registra una narrazione come evento noto dello scenario. */
+  onRecordEvent?(m: Message): void;
 }
 
 export function MessageItem({ message: m, actions, busy, selected }: { message: Message; actions: MessageActions; busy: boolean; selected: boolean }) {
@@ -149,6 +151,9 @@ export function MessageItem({ message: m, actions, busy, selected }: { message: 
             {m.status !== 'error' && <IconButton label={t('chat.edit')} icon={<Pencil className="size-3.5" />} disabled={busy} onClick={() => setEditing(true)} />}
             {generated && <IconButton label={t('chat.regenerate')} icon={<RefreshCw className="size-3.5" />} disabled={busy} onClick={() => actions.onRegenerate(m)} />}
             {m.contextMeta && <IconButton label={t('chat.showContext')} icon={<ScanSearch className="size-3.5" />} onClick={() => actions.onInspect(m)} />}
+            {isNarrator && actions.onRecordEvent && (
+              <IconButton label={t('chat.recordEvent')} icon={<CalendarPlus className="size-3.5" />} onClick={() => actions.onRecordEvent?.(m)} />
+            )}
             {m.editedAt && (
               <IconButton
                 label={t('chat.revisions')}

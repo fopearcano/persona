@@ -1,4 +1,4 @@
-import type { CharacterExportV1, CharacterSummary } from '@persona/shared';
+import type { CharacterExportV1, CharacterSummary } from '@persona/shared/client';
 import { Archive, ArchiveRestore, Copy, Download, GitBranch, MessagesSquare, Plus, Trash2, Upload } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';

@@ -1,11 +1,19 @@
 import type { FastifyInstance } from 'fastify';
-import { characterImportOptionsSchema, connectionTestSchema, contextPreviewSchema, processMemorySchema, retrievalPreviewSchema } from '@persona/shared';
+import {
+  characterImportOptionsSchema,
+  connectionTestSchema,
+  contextPreviewSchema,
+  embeddingTestSchema,
+  processMemorySchema,
+  retrievalPreviewSchema,
+} from '@persona/shared';
 import { createReadStream } from 'node:fs';
 import type { AppContext } from '../context.js';
 import { streamResponse } from '../lib/sse.js';
 import { AppError, validate } from '../lib/util.js';
 import * as characters from '../services/characters.js';
 import * as conversations from '../services/conversations.js';
+import * as embeddings from '../services/embeddings.js';
 import { assembleContext } from '../services/context-engine.js';
 import * as generation from '../services/generation.js';
 import * as knowledge from '../services/knowledge.js';
@@ -13,8 +21,10 @@ import * as memory from '../services/memory.js';
 import { processConversationMemory, processPendingFor } from '../services/memory-processing.js';
 import * as models from '../services/model-configs.js';
 import * as portability from '../services/portability.js';
+import { extractPdf } from '../services/pdf.js';
 import { getPreferences, updatePreferences } from '../services/preferences.js';
 import { coreMemories, searchScopedMemories } from '../services/retrieval.js';
+import * as scenarioPortability from '../services/scenario-portability.js';
 import * as scenarios from '../services/scenarios.js';
 
 type Params = { id: string };
@@ -45,7 +55,23 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext) {
 
   /* ---------------- Preferenze ---------------- */
   app.get('/api/preferences', async () => getPreferences(ctx));
-  app.put('/api/preferences', async (req) => updatePreferences(ctx, req.body as never));
+  app.put('/api/preferences', async (req) => {
+    const next = updatePreferences(ctx, req.body as never);
+    if ((req.body as { embeddings?: unknown } | null)?.embeddings) embeddings.scheduleIndexing(ctx);
+    return next;
+  });
+
+  /* ---------------- Embedding (recupero semantico) ---------------- */
+  app.get('/api/embeddings/status', async () => embeddings.embeddingStatus(ctx));
+  app.post('/api/embeddings/reindex', async (req) => {
+    if (((req.body ?? {}) as { reset?: boolean }).reset) embeddings.resetEmbeddings(ctx);
+    await embeddings.runIndexing(ctx);
+    return embeddings.embeddingStatus(ctx);
+  });
+  app.post('/api/embeddings/test', async (req) => {
+    const data = validate(embeddingTestSchema, req.body ?? {});
+    return embeddings.testEmbeddings(ctx, { modelConfigId: data.modelConfigId ?? undefined, model: data.model });
+  });
 
   /* ---------------- Configurazioni modello ---------------- */
   app.get('/api/model-configs', async () => models.listModelConfigs(ctx));
@@ -114,6 +140,11 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext) {
     knowledge.searchCharacterKnowledge(ctx, req.params.id, req.query.q ?? ''),
   );
   app.get<{ Params: Params }>('/api/knowledge/:id', async (req) => knowledge.getKnowledgeSource(ctx, req.params.id));
+  /** Estrae il testo di un PDF (corpo binario) per l'anteprima prima del salvataggio. */
+  app.post<{ Querystring: Q }>('/api/knowledge/extract-pdf', async (req) => {
+    if (!Buffer.isBuffer(req.body)) throw new AppError('invalid_pdf', 'Inviare il PDF come application/pdf');
+    return extractPdf(req.body, req.query.filename ?? 'documento.pdf');
+  });
   app.put<{ Params: Params }>('/api/knowledge/:id', async (req) => knowledge.updateKnowledgeSource(ctx, req.params.id, req.body as never));
   app.delete<{ Params: Params }>('/api/knowledge/:id', async (req, reply) => {
     knowledge.deleteKnowledgeSource(ctx, req.params.id);
@@ -140,9 +171,14 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext) {
   app.post('/api/memories/retrieve', async (req) => {
     const data = validate(retrievalPreviewSchema, req.body);
     characters.getCharacterRow(ctx, data.characterId);
+    const q = await embeddings.embedQuery(ctx, data.query);
+    const semantic =
+      q.vector && q.model ? { vector: q.vector, model: q.model, weight: getPreferences(ctx).embeddings.semanticWeight } : null;
     return {
+      mode: semantic ? 'hybrid' : 'lexical',
+      semanticError: q.error,
       core: coreMemories(ctx, data.characterId),
-      scoped: searchScopedMemories(ctx, { characterId: data.characterId, scenarioId: data.scenarioId }, data.query, 30),
+      scoped: searchScopedMemories(ctx, { characterId: data.characterId, scenarioId: data.scenarioId }, data.query, 30, semantic),
     };
   });
 
@@ -221,7 +257,7 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext) {
         createdAt: new Date().toISOString(),
       });
     }
-    return assembleContext(ctx, {
+    return await assembleContext(ctx, {
       conversation: conv,
       speakerId,
       mode,
@@ -244,6 +280,20 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext) {
 
   /* ---------------- Scenari ---------------- */
   app.get('/api/scenarios', async () => scenarios.listScenarios(ctx));
+  app.get<{ Params: Params; Querystring: Q }>('/api/scenarios/:id/export', async (req, reply) => {
+    const data = scenarioPortability.exportScenario(ctx, req.params.id, { sessions: bool(req.query.sessions, true) });
+    const safe = data.scenario.title.normalize('NFKD').replace(/[^\w-]+/g, '_').slice(0, 60) || 'scenario';
+    reply.header('Content-Disposition', `attachment; filename="persona-scenario-${safe}.json"`);
+    return data;
+  });
+  app.post<{ Querystring: Q }>('/api/scenarios/import', async (req, reply) =>
+    reply.code(201).send(
+      scenarioPortability.importScenario(ctx, req.body, {
+        characters: req.query.characters === 'new' ? 'new' : 'reuse',
+        includeSessions: bool(req.query.sessions, true),
+      }),
+    ),
+  );
   app.post('/api/scenarios', async (req, reply) => reply.code(201).send(scenarios.createScenario(ctx, req.body as never)));
   app.get<{ Params: Params }>('/api/scenarios/:id', async (req) => scenarios.getScenario(ctx, req.params.id));
   app.put<{ Params: Params }>('/api/scenarios/:id', async (req) => scenarios.updateScenario(ctx, req.params.id, req.body as never));

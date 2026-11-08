@@ -7,6 +7,7 @@ import { collectChat } from '../llm/types.js';
 import { AppError, compactWhitespace, newId, notFound, nowIso, parseJson, preview, validate } from '../lib/util.js';
 import { getCharacter, getCharacterRow } from './characters.js';
 import { resolveEngine } from './model-configs.js';
+import { scheduleIndexing } from './embeddings.js';
 import { consistencyPrompt } from './prompts.js';
 import { buildFtsQuery } from './retrieval.js';
 
@@ -129,14 +130,14 @@ export interface MemoryProvenance {
 
 export function insertMemory(
   ctx: AppContext,
-  data: Omit<MemoryRow, 'id' | 'createdAt' | 'updatedAt' | 'retrievalCount' | 'lastRetrievedAt' | 'embedding'>,
+  data: Omit<MemoryRow, 'id' | 'createdAt' | 'updatedAt' | 'retrievalCount' | 'lastRetrievedAt' | 'embedding' | 'embeddingModel'>,
   provenance: MemoryProvenance | null,
 ): Memory {
   const id = newId();
   const ts = nowIso();
   ctx.dbm.db.transaction((tx) => {
     tx.insert(memories)
-      .values({ ...data, id, retrievalCount: 0, lastRetrievedAt: null, embedding: null, createdAt: ts, updatedAt: ts })
+      .values({ ...data, id, retrievalCount: 0, lastRetrievedAt: null, embedding: null, embeddingModel: null, createdAt: ts, updatedAt: ts })
       .run();
     if (provenance) {
       tx.insert(memorySources)
@@ -154,6 +155,7 @@ export function insertMemory(
         .run();
     }
   });
+  scheduleIndexing(ctx);
   return getMemory(ctx, id);
 }
 
@@ -184,9 +186,11 @@ export function createMemory(ctx: AppContext, input: MemoryInput): Memory {
 export function updateMemory(ctx: AppContext, id: string, input: MemoryUpdate): Memory {
   const existing = getMemory(ctx, id);
   const patch = validate(memoryUpdateSchema, input);
+  const contentChanged = patch.content !== undefined && patch.content !== existing.content;
   ctx.dbm.db
     .update(memories)
     .set({
+      ...(contentChanged ? { embedding: null, embeddingModel: null } : {}),
       content: patch.content ?? existing.content,
       importance: patch.importance ?? existing.importance,
       epistemicStatus: patch.epistemicStatus ?? existing.epistemicStatus,
@@ -197,6 +201,7 @@ export function updateMemory(ctx: AppContext, id: string, input: MemoryUpdate): 
     })
     .where(eq(memories.id, id))
     .run();
+  if (contentChanged || patch.status === 'active') scheduleIndexing(ctx);
   return getMemory(ctx, id);
 }
 

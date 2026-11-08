@@ -1,5 +1,5 @@
-import type { ContextMeta, ContextPreview, ConversationDetail, Memory, ScenarioDetail } from '@persona/shared';
-import { estimateTokens } from '@persona/shared';
+import type { ContextMeta, ContextPreview, ConversationDetail, Memory, ScenarioDetail } from '@persona/shared/client';
+import { estimateTokens } from '@persona/shared/client';
 import { ExternalLink, FileSearch } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -146,6 +146,18 @@ function ContextTab({ conversation, meta, speakerId }: { conversation: Conversat
               ))}
             </ul>
           </div>
+          {meta.retrieval && (
+            <p className="text-xs text-muted">
+              {meta.retrieval.mode === 'hybrid' ? t('inspector.retrievalHybrid', { model: meta.retrieval.embeddingModel }) : t('inspector.retrievalLexical')}
+              {meta.retrieval.semanticError && <span className="block text-warn">{t('inspector.semanticError', { error: meta.retrieval.semanticError })}</span>}
+            </p>
+          )}
+          {meta.turnSelection && (
+            <p className="text-xs">
+              <span className="text-muted">{t('inspector.turnSelection')}:</span> {t(`enums.turnMode.${meta.turnSelection.mode}`)}
+              {meta.turnSelection.reason && <span className="text-muted"> — {meta.turnSelection.reason}</span>}
+            </p>
+          )}
           <p className="text-xs text-muted">
             {t('inspector.history', { included: meta.historyIncluded, omitted: meta.historyOmitted })}
             {meta.summaryId && <> · {t('inspector.summaryUsed')}</>}
@@ -162,7 +174,10 @@ function ContextTab({ conversation, meta, speakerId }: { conversation: Conversat
                 <li key={m.id} className="flex gap-1.5 text-xs">
                   <Badge tone={categoryTone(m.category)}>{t(`enums.memoryCategory.${m.category}`)}</Badge>
                   <span className="flex-1">{m.preview}</span>
-                  <span className="font-mono text-muted">{m.score.toFixed(2)}</span>
+                  <span className="font-mono text-muted" title={m.semantic !== undefined ? `${t('memory.semantic')}: ${m.semantic.toFixed(2)}` : undefined}>
+                    {m.score.toFixed(2)}
+                    {m.semantic !== undefined && <span className="text-accent"> ·{m.semantic.toFixed(2)}</span>}
+                  </span>
                 </li>
               ))}
             </ul>

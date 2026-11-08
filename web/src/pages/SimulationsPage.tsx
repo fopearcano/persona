@@ -1,5 +1,5 @@
-import type { Conversation, TurnMode } from '@persona/shared';
-import { TURN_MODES } from '@persona/shared';
+import type { Conversation, TurnMode } from '@persona/shared/client';
+import { TURN_MODES } from '@persona/shared/client';
 import { ArrowLeft, Drama, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

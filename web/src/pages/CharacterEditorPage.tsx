@@ -1,5 +1,5 @@
-import type { BigFive, Character, CharacterSnapshot, ExpertiseLevel, KnowledgeHit, KnowledgeSource, ProficiencyLevel, TraitCategory } from '@persona/shared';
-import { EPISTEMIC_STATUSES, EXPERTISE_LEVELS, PROFICIENCY_LEVELS } from '@persona/shared';
+import type { BigFive, Character, CharacterSnapshot, ExpertiseLevel, KnowledgeHit, KnowledgeSource, PdfExtraction, ProficiencyLevel, TraitCategory } from '@persona/shared/client';
+import { EPISTEMIC_STATUSES, EXPERTISE_LEVELS, PROFICIENCY_LEVELS } from '@persona/shared/client';
 import { ArrowLeft, GitBranch, History, MessagesSquare, Plus, RotateCcw, Save, Search, Trash2, Upload, X } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -542,7 +542,7 @@ function KnowledgePanel({ characterId }: { characterId: string }) {
   return (
     <div className="flex flex-col gap-4">
       <p className="rounded-md border border-border bg-panel p-3 text-sm text-muted">
-        {t('editor.knowledge.help')} {t('editor.knowledge.pdfLater')}
+        {t('editor.knowledge.help')} {t('editor.knowledge.pdfNote')}
       </p>
       <div className="flex flex-wrap gap-2">
         <Button icon={<Plus className="size-4" />} onClick={() => setEditing({ id: null, draft: { ...emptySource } })}>
@@ -551,12 +551,22 @@ function KnowledgePanel({ characterId }: { characterId: string }) {
         <input
           ref={fileRef}
           type="file"
-          accept=".txt,.md,.markdown,text/plain,text/markdown"
+          accept=".txt,.md,.markdown,.pdf,text/plain,text/markdown,application/pdf"
           className="hidden"
           onChange={async (e) => {
             const f = e.target.files?.[0];
             e.target.value = '';
             if (!f) return;
+            if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
+              try {
+                const pdf = await api.upload<PdfExtraction>(`/api/knowledge/extract-pdf?filename=${encodeURIComponent(f.name)}`, f);
+                setEditing({ id: null, draft: { ...emptySource, title: pdf.title, kind: 'text', content: pdf.text, sourceRef: f.name } });
+                toast(t('editor.knowledge.pdfExtracted', { count: pdf.pages }), 'success');
+              } catch (err) {
+                toast(errorText(err), 'error');
+              }
+              return;
+            }
             const content = await f.text();
             setEditing({
               id: null,

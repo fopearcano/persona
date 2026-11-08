@@ -158,8 +158,10 @@ export const knowledgeChunks = sqliteTable(
     characterId: text('character_id').notNull(),
     ordinal: integer('ordinal').notNull(),
     content: text('content').notNull(),
-    /** Riservato agli embedding locali (JSON/float32 base64). Non ancora usato. */
+    /** Embedding locale (Float32 little-endian in base64) per il recupero semantico. */
     embedding: text('embedding'),
+    /** Modello che ha prodotto l'embedding: se cambia, il frammento va reindicizzato. */
+    embeddingModel: text('embedding_model'),
   },
   (t) => [index('knowledge_chunks_source_idx').on(t.sourceId)],
 );
@@ -189,8 +191,9 @@ export const memories = sqliteTable(
     promotedFromId: text('promoted_from_id'),
     retrievalCount: integer('retrieval_count').notNull().default(0),
     lastRetrievedAt: text('last_retrieved_at'),
-    /** Riservato agli embedding multilingue futuri. */
+    /** Embedding multilingue locale (Float32 little-endian in base64), facoltativo. */
     embedding: text('embedding'),
+    embeddingModel: text('embedding_model'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

@@ -79,6 +79,8 @@
     "invalid_import": "Invalid import file.",
     "invalid_backup": "Invalid backup: {{message}}",
     "internal": "Internal error: {{message}}",
+    "invalid_pdf": "Invalid PDF: {{message}}",
+    "embeddings_unsupported": "The selected provider does not support embeddings.",
     "network": "Backend unreachable. Is it running?",
     "generic": "An error occurred."
   },
@@ -180,7 +182,8 @@
     },
     "turnMode": {
       "manual": "Author-controlled turns",
-      "round-robin": "Automatic rotation"
+      "round-robin": "Automatic rotation",
+      "auto": "Automatic director (LLM)"
     },
     "characterStatus": {
       "active": "Active",
@@ -313,7 +316,8 @@
       "title": "Knowledge base",
       "help": "Local documents indexed with lexical search (SQLite FTS5). They are retrieved by relevance, treated as untrusted data and given to the model with their epistemic status.",
       "add": "Add source",
-      "uploadFile": "Upload .txt / .md file",
+      "uploadFile": "Upload .txt / .md / .pdf file",
+      "pdfExtracted": "Text extracted from {{count}} pages: review it before saving.",
       "sourceTitle": "Title",
       "kind": "Type",
       "sourceRef": "Reference (URL, citation)",
@@ -326,7 +330,7 @@
       "searchPlaceholder": "Type a question…",
       "empty": "No documents.",
       "saveFirst": "Save the character to add documents.",
-      "pdfLater": "PDF extraction planned for a later version."
+      "pdfNote": "Only selectable text is extracted from PDFs (no OCR for scanned documents)."
     },
     "model": {
       "title": "Character LLM engine",
@@ -419,7 +423,12 @@
     "reasoning": "Model reasoning",
     "generatedNote": "Generated lines are not canonical identity data.",
     "superseded": "Superseded version",
-    "inspector": "Inspector panel"
+    "inspector": "Inspector panel",
+    "turnMode": "Turns",
+    "autoTurns": "Advance ×{{count}}",
+    "autoTurnsHelp": "Generate several consecutive turns using the turn management",
+    "recordEvent": "Record as scenario event",
+    "eventRecorded": "Event added to the scenario"
   },
   "inspector": {
     "tabs": {
@@ -465,6 +474,10 @@
       "history": "History"
     },
     "memoriesInScope": "Memories in scope for this conversation",
+    "retrievalHybrid": "Hybrid retrieval: lexical + semantic ({{model}})",
+    "retrievalLexical": "Lexical retrieval (FTS5)",
+    "semanticError": "Semantic retrieval unavailable: {{error}}",
+    "turnSelection": "Turn selection",
     "manageMemories": "Manage on the Memory page"
   },
   "scenarios": {
@@ -523,7 +536,15 @@
     "created": "Scenario created",
     "noMemories": "No contextual memories.",
     "languageNone": "As preferences",
-    "participantSaved": "Participant updated"
+    "participantSaved": "Participant updated",
+    "export": "Export scenario",
+    "exportSessions": "Include sessions and simulations",
+    "exportHelp": "The file contains the scenario, the participants' identities, relationships, events, contextual memories and, if requested, the sessions.",
+    "import": "Import scenario",
+    "importReuse": "Reuse characters already present (same identifier)",
+    "importNew": "Always import characters as new identities",
+    "importSessions": "Include sessions and simulations",
+    "importDone": "Imported “{{title}}”: {{imported}} new characters, {{reused}} reused, {{sessions}} sessions, {{memories}} contextual memories."
   },
   "simulations": {
     "title": "Simulations",
@@ -594,7 +615,10 @@
     "score": "score",
     "coreAlways": "Core memories (always included)",
     "scoped": "Relevant memories",
-    "lexicalNote": "Lexical retrieval (FTS5): does not recognize synonyms or cross-language translations.",
+    "lexicalNote": "Lexical retrieval (FTS5): on its own it does not recognize synonyms or translations. Enable semantic retrieval in Settings to search by meaning, even across languages.",
+    "modeHybrid": "Hybrid retrieval (lexical + semantic)",
+    "modeLexical": "Lexical retrieval only",
+    "semantic": "semantic",
     "deleteConfirm": "Permanently delete this memory?",
     "proposedHelp": "Proposed memories are not used until the author approves them.",
     "created": "Memory created",
@@ -671,6 +695,22 @@
     "database": "Database",
     "schemaVersion": "Applied migrations",
     "stats": "{{characters}} characters · {{memories}} memories · {{conversations}} conversations · {{messages}} messages · {{scenarios}} scenarios",
-    "localOnly": "All data stays on this computer. No accounts, no telemetry."
+    "localOnly": "All data stays on this computer. No accounts, no telemetry.",
+    "embeddings": "Semantic retrieval (local embeddings)",
+    "embeddingsHelp": "Adds meaning-based search, even across languages, to lexical search using a local embedding model (for example a multilingual model such as bge-m3 or multilingual-e5 loaded in LM Studio). If the service does not respond, PERSONA automatically falls back to lexical retrieval.",
+    "embeddingsEnabled": "Enable semantic retrieval",
+    "embeddingsEngine": "Endpoint",
+    "embeddingsEngineDefault": "Default engine",
+    "embeddingsModel": "Embedding model",
+    "embeddingsModelAuto": "Automatic (first available embedding model)",
+    "semanticWeight": "Semantic weight: {{value}}%",
+    "embeddingsTest": "Test embeddings",
+    "embeddingsTestOk": "Embedding succeeded: {{dims}} dimensions in {{ms}} ms ({{model}})",
+    "embeddingsReindex": "Index now",
+    "embeddingsRebuild": "Rebuild all",
+    "embeddingsRebuildConfirm": "Recompute all embeddings? With a lot of data this may take a while.",
+    "embeddingsStatus": "Indexed {{mem}}/{{memTotal}} memories and {{chunks}}/{{chunksTotal}} knowledge chunks",
+    "embeddingsRunning": "Indexing in progress…",
+    "embeddingsLastError": "Last error: {{error}}"
   }
 }

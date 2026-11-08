@@ -7,7 +7,7 @@
  *   node scripts/e2e-smoke.cjs /tmp/persona-shots
  * Usa il provider "Mock": non serve LM Studio.
  */
-const { mkdirSync } = require('node:fs');
+const { mkdirSync, readFileSync } = require('node:fs');
 const { chromium } = require('playwright');
 const BASE = process.env.PERSONA_E2E_URL ?? 'http://127.0.0.1:4399';
 const SHOTS = process.argv[2] ?? 'e2e-shots';
@@ -129,6 +129,72 @@ mkdirSync(SHOTS, { recursive: true });
     await box.press('Enter');
     await page.getByText('[Irina Volkova] Risposta simulata').waitFor({ timeout: 10000 });
     await page.screenshot({ path: `${SHOTS}/scenario-session.png` });
+  });
+  await step('semantic retrieval settings', async () => {
+    await page.goto(BASE + '/settings');
+    const card = page.locator('section', { has: page.getByRole('heading', { name: /Recupero semantico/ }) });
+    await card.getByLabel('Attiva il recupero semantico').check();
+    await card.getByLabel('Endpoint').selectOption({ label: 'Mock (demo offline, senza LLM)' });
+    await card.getByLabel('Modello di embedding').fill('mock-embed');
+    await card.getByRole('button', { name: 'Salva' }).click();
+    await card.getByRole('button', { name: 'Prova embedding' }).click();
+    await card.getByText(/Embedding riuscito: 96 dimensioni/).waitFor({ timeout: 5000 });
+    await card.getByRole('button', { name: 'Indicizza ora' }).click();
+    await card.getByText(/Indicizzate (\d+)\/\1 memorie/).waitFor({ timeout: 10000 });
+    await page.screenshot({ path: `${SHOTS}/settings-embeddings.png`, fullPage: true });
+  });
+  await step('pdf into knowledge base', async () => {
+    const chars = await (await page.request.get(BASE + '/api/characters')).json();
+    await page.goto(`${BASE}/characters/${chars[0].id}?tab=knowledge`);
+    const lines = ['Le pulsar millisecondo', 'sono orologi naturali.'];
+    const content = `BT /F1 12 Tf 72 720 Td ${lines.map((l, i) => `${i ? '0 -16 Td ' : ''}(${l}) Tj`).join(' ')} ET`;
+    const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+      `<< /Length ${content.length} >>\nstream\n${content}\nendstream`, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+    let out = '%PDF-1.4\n'; const off = [];
+    objs.forEach((o, i) => { off.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+    const x = out.length;
+    out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${off.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${x}\n%%EOF\n`;
+    await page.locator('input[type=file][accept*="pdf"]').setInputFiles({ name: 'Pulsar.pdf', mimeType: 'application/pdf', buffer: Buffer.from(out, 'latin1') });
+    await page.getByText(/Testo estratto da 1 pagine/).waitFor({ timeout: 10000 });
+    await page.getByRole('button', { name: 'Salva', exact: true }).last().click();
+    await page.getByText('1 frammento').waitFor({ timeout: 5000 });
+  });
+  await step('automatic turns in a simulation', async () => {
+    const created = await (await page.request.post(BASE + '/api/characters', { data: { name: 'Marco Bellini', occupation: 'Ingegnere' } })).json();
+    const scenarios = await (await page.request.get(BASE + '/api/scenarios')).json();
+    await page.request.post(`${BASE}/api/scenarios/${scenarios[0].id}/participants`, { data: { characterId: created.id, role: 'Ingegnere capo' } });
+    await page.goto(`${BASE}/simulations?scenarioId=${scenarios[0].id}`);
+    await page.getByLabel('Titolo').fill('Emergenza in plancia');
+    await page.getByLabel('Gestione dei turni').selectOption('auto');
+    await page.getByRole('button', { name: 'Crea simulazione' }).click();
+    await page.waitForURL(/\/simulations\/[0-9a-f-]{36}/);
+    await page.getByRole('radio', { name: 'Narrazione' }).click();
+    const box = page.getByRole('textbox', { name: /Descrivi un evento/ });
+    await box.fill('Marco, il reattore perde pressione!');
+    await box.press('Enter');
+    await page.getByText('[Marco Bellini] Risposta simulata').first().waitFor({ timeout: 10000 });
+    await page.getByRole('button', { name: 'Avanza ×3' }).click();
+    await page.waitForFunction(() => document.querySelectorAll('.prose-msg').length >= 5, null, { timeout: 20000 });
+    await page.getByRole('button', { name: 'Avanza ×3' }).waitFor({ state: 'visible' });
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${SHOTS}/simulation-auto.png` });
+  });
+  await step('scenario export and import', async () => {
+    const scenarios = await (await page.request.get(BASE + '/api/scenarios')).json();
+    await page.goto(`${BASE}/scenarios/${scenarios[0].id}`);
+    await page.getByRole('button', { name: 'Esporta scenario' }).click();
+    const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Esporta', exact: true }).click()]);
+    const path = await download.path();
+    const bundle = JSON.parse(readFileSync(path, 'utf8'));
+    if (bundle.format !== 'persona.scenario' || bundle.characters.length !== 2) throw new Error('bad bundle');
+    await page.goto(BASE + '/scenarios');
+    await page.getByRole('button', { name: 'Importa scenario' }).click();
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('dialog').getByRole('button', { name: 'Importa' }).click();
+    await (await chooser).setFiles(path);
+    await page.getByText(/Importato «Nave Aurora»: 0 personaggi nuovi, 2 riutilizzati/).waitFor({ timeout: 5000 });
+    await page.waitForURL(/\/scenarios\/[0-9a-f-]{36}/);
   });
   await step('english ui', async () => {
     await page.goto(BASE + '/settings');

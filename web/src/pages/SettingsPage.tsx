@@ -1,7 +1,19 @@
-import type { BackupInfo, ConnectionTestResult, ModelConfig, ModelInfo, Preferences, PreferencesUpdate, ProviderType, Theme } from '@persona/shared';
-import { PLANNED_UI_LANGUAGES, PROVIDER_TYPES, UI_LANGUAGES } from '@persona/shared';
+import type {
+  BackupInfo,
+  ConnectionTestResult,
+  EmbeddingStatus,
+  EmbeddingTestResult,
+  ModelConfig,
+  ModelInfo,
+  Preferences,
+  PreferencesUpdate,
+  ProviderType,
+  Theme,
+} from '@persona/shared/client';
+import { PLANNED_UI_LANGUAGES, PROVIDER_TYPES, UI_LANGUAGES } from '@persona/shared/client';
 import { useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, DatabaseBackup, Download, Plug, Plus, RotateCcw, Save, Search, Star, Trash2, Upload, XCircle } from 'lucide-react';
+import { CheckCircle2, DatabaseBackup, Download, Plug, Plus, RefreshCw, RotateCcw, Save, Search, Sparkles, Star, Trash2, Upload, XCircle } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, downloadUrl } from '../api/client';
@@ -40,6 +52,7 @@ export function SettingsPage() {
           <AppearanceCard prefs={prefs} />
           <ModelsCard />
           <MemoryContextCard prefs={prefs} />
+          <EmbeddingsCard prefs={prefs} />
           <BackupCard />
           <InfoCard />
         </div>
@@ -406,6 +419,167 @@ function MemoryContextCard({ prefs }: { prefs: Preferences }) {
             <Checkbox label={t('settings.includeExcerpts')} checked={ctx.includeExcerpts} onChange={(v) => setCtx({ ...ctx, includeExcerpts: v })} />
           </div>
         </div>
+      </div>
+    </Card>
+  );
+}
+
+function EmbeddingsCard({ prefs }: { prefs: Preferences }) {
+  const { t } = useTranslation();
+  const save = useSavePreferences();
+  const toast = useUi((s) => s.toast);
+  const errorText = useErrorText();
+  const { data: configs } = useModelConfigs();
+  const [d, setD] = useState(prefs.embeddings);
+  const [models, setModels] = useState<ModelInfo[] | null>(null);
+  const [test, setTest] = useState<EmbeddingTestResult | null>(null);
+  const [busy, setBusy] = useState<'test' | 'index' | 'discover' | null>(null);
+  const status = useQuery({
+    queryKey: ['embeddings-status'],
+    queryFn: () => api.get<EmbeddingStatus>('/api/embeddings/status'),
+    refetchInterval: (q) => (q.state.data?.running ? 1500 : false),
+  });
+  const qc = useQueryClient();
+  useEffect(() => setD(prefs.embeddings), [prefs.embeddings]);
+  const dirty = JSON.stringify(d) !== JSON.stringify(prefs.embeddings);
+  const configId = d.modelConfigId ?? configs?.find((c) => c.isDefault)?.id ?? '';
+  const st = status.data;
+
+  const reindex = async (reset: boolean) => {
+    if (reset && !window.confirm(t('settings.embeddingsRebuildConfirm'))) return;
+    setBusy('index');
+    try {
+      qc.setQueryData(['embeddings-status'], await api.post<EmbeddingStatus>('/api/embeddings/reindex', { reset }));
+    } catch (err) {
+      toast(errorText(err), 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Card
+      title={<span className="inline-flex items-center gap-1.5"><Sparkles className="size-4" /> {t('settings.embeddings')}</span>}
+      actions={
+        <Button
+          size="sm"
+          variant="primary"
+          icon={<Save className="size-3.5" />}
+          disabled={!dirty}
+          onClick={async () => {
+            if (await save({ embeddings: d })) {
+              toast(t('toast.saved'), 'success');
+              setTimeout(() => void status.refetch(), 300);
+            }
+          }}
+        >
+          {t('common.save')}
+        </Button>
+      }
+    >
+      <p className="mb-3 text-sm text-muted">{t('settings.embeddingsHelp')}</p>
+      <div className="flex flex-col gap-3">
+        <Checkbox label={t('settings.embeddingsEnabled')} checked={d.enabled} onChange={(v) => setD({ ...d, enabled: v })} />
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <Field label={t('settings.embeddingsEngine')}>
+            <Select value={d.modelConfigId ?? ''} onChange={(e) => setD({ ...d, modelConfigId: e.target.value || null })}>
+              <option value="">{t('settings.embeddingsEngineDefault')}</option>
+              {configs?.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label={t('settings.embeddingsModel')} className="md:col-span-2">
+            <div className="flex gap-1">
+              {models && models.length > 0 ? (
+                <Select value={d.model} onChange={(e) => setD({ ...d, model: e.target.value })}>
+                  <option value="">{t('settings.embeddingsModelAuto')}</option>
+                  {d.model && !models.some((m) => m.id === d.model) && <option value={d.model}>{d.model}</option>}
+                  {models.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.id}
+                      {m.type ? ` · ${m.type}` : ''}
+                    </option>
+                  ))}
+                </Select>
+              ) : (
+                <Input value={d.model} onChange={(e) => setD({ ...d, model: e.target.value })} placeholder={t('settings.embeddingsModelAuto')} />
+              )}
+              <Button
+                icon={<Search className="size-3.5" />}
+                loading={busy === 'discover'}
+                disabled={!configId}
+                onClick={async () => {
+                  setBusy('discover');
+                  try {
+                    const all = await api.get<ModelInfo[]>(`/api/model-configs/${configId}/models`);
+                    const emb = all.filter((m) => m.type === 'embeddings' || /embed/i.test(m.id));
+                    setModels(emb.length ? emb : all);
+                  } catch (err) {
+                    toast(errorText(err), 'error');
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+              >
+                {t('settings.discover')}
+              </Button>
+            </div>
+          </Field>
+        </div>
+        <Field label={t('settings.semanticWeight', { value: Math.round(d.semanticWeight * 100) })} className="max-w-sm">
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={d.semanticWeight}
+            onChange={(e) => setD({ ...d, semanticWeight: Number(e.target.value) })}
+            className="accent-[var(--accent)]"
+            aria-label={t('settings.semanticWeight', { value: Math.round(d.semanticWeight * 100) })}
+          />
+        </Field>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            icon={<Plug className="size-3.5" />}
+            loading={busy === 'test'}
+            onClick={async () => {
+              setBusy('test');
+              setTest(null);
+              try {
+                setTest(await api.post<EmbeddingTestResult>('/api/embeddings/test', { modelConfigId: d.modelConfigId, model: d.model || undefined }));
+              } catch (err) {
+                toast(errorText(err), 'error');
+              } finally {
+                setBusy(null);
+              }
+            }}
+          >
+            {t('settings.embeddingsTest')}
+          </Button>
+          <Button size="sm" icon={<RefreshCw className="size-3.5" />} loading={busy === 'index'} disabled={!prefs.embeddings.enabled || dirty} onClick={() => void reindex(false)}>
+            {t('settings.embeddingsReindex')}
+          </Button>
+          <Button size="sm" variant="ghost" disabled={!prefs.embeddings.enabled || dirty || busy === 'index'} onClick={() => void reindex(true)}>
+            {t('settings.embeddingsRebuild')}
+          </Button>
+        </div>
+        {test && (
+          <div className={`flex items-start gap-2 rounded-md border p-2 text-sm ${test.ok ? 'border-ok/40 text-ok' : 'border-danger/40 text-danger'}`}>
+            {test.ok ? <CheckCircle2 className="mt-0.5 size-4" /> : <XCircle className="mt-0.5 size-4" />}
+            <span>{test.ok ? t('settings.embeddingsTestOk', { dims: test.dimensions, ms: test.latencyMs, model: test.model }) : errorText(test.error)}</span>
+          </div>
+        )}
+        {st && (
+          <p className="text-xs text-muted">
+            {t('settings.embeddingsStatus', { mem: st.memories.indexed, memTotal: st.memories.total, chunks: st.chunks.indexed, chunksTotal: st.chunks.total })}
+            {st.running && <> · {t('settings.embeddingsRunning')}</>}
+            {st.lastError && <span className="text-warn"> · {t('settings.embeddingsLastError', { error: st.lastError })}</span>}
+          </p>
+        )}
       </div>
     </Card>
   );

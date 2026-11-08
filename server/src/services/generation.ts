@@ -3,7 +3,7 @@
  * identità → recupero memorie → assemblaggio contesto → adattatore LLM →
  * risposta in streaming → salvataggio → elaborazione controllata della memoria.
  */
-import type { ErrorCode, StreamEvent } from '@persona/shared';
+import type { ErrorCode, StreamEvent, TurnSelectionMeta } from '@persona/shared';
 import { regenerateSchema, sendMessageSchema, turnSchema } from '@persona/shared';
 import type { AppContext } from '../context.js';
 import { trackBackground } from '../context.js';
@@ -24,6 +24,7 @@ import {
 } from './conversations.js';
 import { maybeAutoTitle, scheduleMemoryProcessing } from './memory-processing.js';
 import { resolveEngine } from './model-configs.js';
+import { selectSpeaker } from './turns.js';
 
 export interface StreamSink {
   send(event: StreamEvent): void;
@@ -63,6 +64,7 @@ interface TurnOptions {
   language?: string;
   directive?: string | null;
   regenerateOf?: MessageRow;
+  turnSelection?: TurnSelectionMeta | null;
 }
 
 /** Genera un turno del personaggio indicato. Non lancia: gli errori vengono emessi come eventi. */
@@ -85,7 +87,7 @@ async function generateTurn(
     const all = activeMessages(ctx, conv.id);
     const history = opts.regenerateOf ? all.filter((m) => m.seq < opts.regenerateOf!.seq) : all;
     const responseLanguage = opts.language ?? conv.language;
-    const assembled = assembleContext(ctx, {
+    const assembled = await assembleContext(ctx, {
       conversation: conv,
       speakerId: character.id,
       mode: opts.mode,
@@ -99,6 +101,7 @@ async function generateTurn(
         maxTokens: engine.config.maxTokens,
       },
       touch: true,
+      turnSelection: opts.turnSelection ?? null,
     });
     const role = opts.mode === 'analysis' ? 'analysis' : 'character';
     placeholder = insertMessage(ctx, {
@@ -188,15 +191,20 @@ export async function sendMessage(ctx: AppContext, conversationId: string, input
     sink.send({ type: 'author_message', message: toMessage(authorMsg) });
 
     let speakerId: string | null = null;
+    let turnSelection: TurnSelectionMeta | null = null;
     if (data.respond) {
       if (conv.kind === 'simulation') {
-        speakerId = conv.turnMode === 'round-robin' ? nextSpeaker(ctx, conv) : null;
+        if (conv.turnMode !== 'manual') {
+          const choice = await selectSpeaker(ctx, conv, signal);
+          speakerId = choice?.speakerId ?? null;
+          turnSelection = choice?.selection ?? null;
+        }
       } else {
         speakerId = conv.characterId;
       }
     }
     if (speakerId) {
-      const res = await generateTurn(ctx, conv, { speakerId, mode, language: data.language }, sink, signal);
+      const res = await generateTurn(ctx, conv, { speakerId, mode, language: data.language, turnSelection }, sink, signal);
       if (res) afterGeneration(ctx, conv.id);
     } else {
       scheduleMemoryProcessing(ctx, conv.id);
@@ -212,12 +220,22 @@ export async function takeTurn(ctx: AppContext, conversationId: string, input: u
   const conv = getConversationRow(ctx, conversationId);
   const unlock = lock(conv.id);
   try {
-    const speakerId = data.characterId ?? (conv.kind === 'simulation' ? nextSpeaker(ctx, conv) : conv.characterId);
+    let speakerId: string | null = data.characterId ?? null;
+    let turnSelection: TurnSelectionMeta | null = data.characterId ? { mode: 'manual', reason: null } : null;
+    if (!speakerId) {
+      if (conv.kind === 'simulation') {
+        const choice = await selectSpeaker(ctx, conv, signal);
+        speakerId = choice?.speakerId ?? null;
+        turnSelection = choice?.selection ?? null;
+      } else {
+        speakerId = conv.characterId;
+      }
+    }
     if (!speakerId) throw new AppError('validation', 'Nessun personaggio selezionato');
     const res = await generateTurn(
       ctx,
       conv,
-      { speakerId, mode: 'dialogue', language: data.language, directive: data.directive },
+      { speakerId, mode: 'dialogue', language: data.language, directive: data.directive, turnSelection },
       sink,
       signal,
     );
@@ -257,14 +275,4 @@ export async function regenerate(ctx: AppContext, messageId: string, input: unkn
   }
 }
 
-/**
- * Rotazione semplice dei turni: il partecipante successivo all'ultimo che ha parlato.
- * Punto di estensione per una futura gestione automatica (es. selezione via LLM).
- */
-export function nextSpeaker(ctx: AppContext, conv: ConversationRow): string | null {
-  const ids = participantIds(ctx, conv.id);
-  if (ids.length === 0) return null;
-  const lastSpeaker = [...activeMessages(ctx, conv.id)].reverse().find((m) => m.role === 'character')?.characterId;
-  const idx = lastSpeaker ? ids.indexOf(lastSpeaker) : -1;
-  return ids[(idx + 1) % ids.length];
-}
+export { nextSpeaker } from './turns.js';

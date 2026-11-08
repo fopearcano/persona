@@ -1,4 +1,4 @@
-import { UI_LANGUAGES } from '@persona/shared';
+import { UI_LANGUAGES } from '@persona/shared/client';
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import en from './locales/en.json';

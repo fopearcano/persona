@@ -1,8 +1,8 @@
 {
   "name": "persona",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "PERSONA — laboratorio local-first per identità artificiali persistenti",
+  "description": "PERSONA \u2014 laboratorio local-first per identit\u00e0 artificiali persistenti",
   "type": "module",
   "workspaces": [
     "shared",

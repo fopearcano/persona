@@ -1,4 +1,4 @@
-import type { ApiErrorBody, ErrorCode, StreamEvent } from '@persona/shared';
+import type { ApiErrorBody, ErrorCode, StreamEvent } from '@persona/shared/client';
 
 /** Errore restituito dal backend con codice stabile (tradotto nell'interfaccia). */
 export class ApiError extends Error {

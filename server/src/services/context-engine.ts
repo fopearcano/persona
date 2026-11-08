@@ -7,7 +7,7 @@
  * contesto di scenario → memorie recuperate → conoscenza → riassunto → estratti →
  * direzione dell'autore → cronologia recente → ultimo messaggio.
  */
-import type { Character, ContextMeta, ContextSectionMeta, DialogueMode, ProviderType, ScenarioDetail } from '@persona/shared';
+import type { Character, ContextMeta, ContextSectionMeta, DialogueMode, ProviderType, ScenarioDetail, TurnSelectionMeta } from '@persona/shared';
 import { estimateTokens, truncateToTokens } from '@persona/shared';
 import type { AppContext } from '../context.js';
 import type { ChatMessage } from '../llm/types.js';
@@ -33,7 +33,8 @@ import {
   scenarioSection,
   summarySection,
 } from './prompts.js';
-import { coreMemories, searchExcerpts, searchKnowledge, searchScopedMemories, touchMemories } from './retrieval.js';
+import { embedQuery } from './embeddings.js';
+import { coreMemories, searchExcerpts, searchKnowledge, searchScopedMemories, type SemanticQuery, touchMemories } from './retrieval.js';
 import { getScenario } from './scenarios.js';
 
 export interface EngineInfo {
@@ -55,6 +56,8 @@ export interface AssembleInput {
   engine: EngineInfo;
   /** Aggiorna le statistiche di recupero delle memorie usate. */
   touch?: boolean;
+  /** Come è stato scelto il parlante (simulazioni). */
+  turnSelection?: TurnSelectionMeta | null;
 }
 
 export interface AssembledContext {
@@ -121,7 +124,7 @@ class Budget {
   }
 }
 
-export function assembleContext(ctx: AppContext, input: AssembleInput): AssembledContext {
+export async function assembleContext(ctx: AppContext, input: AssembleInput): Promise<AssembledContext> {
   const prefs = getPreferences(ctx).context;
   const { conversation, engine } = input;
   const kind = conversation.kind as Kind;
@@ -150,11 +153,23 @@ export function assembleContext(ctx: AppContext, input: AssembleInput): Assemble
     historyIncluded: 0,
     historyOmitted: 0,
     directive: input.directive ?? null,
+    retrieval: { mode: 'lexical', embeddingModel: null, semanticError: null },
+    turnSelection: input.turnSelection ?? null,
   };
 
   const inCharacter = input.history.filter(isInCharacter);
   const recentForQuery = (input.mode === 'analysis' ? input.history : inCharacter).slice(-3).map((m) => m.content);
   const queryText = [...recentForQuery, input.directive ?? ''].join('\n');
+
+  // Recupero ibrido facoltativo: embedding della query (fallback silenzioso al lessicale).
+  let semantic: SemanticQuery | null = null;
+  const q = await embedQuery(ctx, queryText);
+  if (q.vector && q.model) {
+    semantic = { vector: q.vector, model: q.model, weight: getPreferences(ctx).embeddings.semanticWeight };
+    meta.retrieval = { mode: 'hybrid', embeddingModel: q.model, semanticError: null };
+  } else if (q.error) {
+    meta.retrieval.semanticError = q.error;
+  }
 
   const memoryBudget = Math.floor(inputBudget * prefs.memoryRatio);
   const coreBudget = Math.floor(memoryBudget * 0.5);
@@ -213,14 +228,21 @@ export function assembleContext(ctx: AppContext, input: AssembleInput): Assemble
   const otherBudget = memoryBudget - coreTokens;
   const memLines: string[] = [];
   let memTokens = 0;
-  for (const m of searchScopedMemories(ctx, scope, queryText)) {
+  for (const m of searchScopedMemories(ctx, scope, queryText, 60, semantic)) {
     if (meta.memories.length >= prefs.maxMemories) break;
     const l = formatMemoryLine(m, scenario?.title);
     const t = estimateTokens(l);
     if (memTokens + t > otherBudget) continue;
     memLines.push(l);
     memTokens += t;
-    meta.memories.push({ id: m.id, category: m.category, score: Number(m.score.toFixed(3)), tokens: t, preview: preview(m.content) });
+    meta.memories.push({
+      id: m.id,
+      category: m.category,
+      score: Number(m.score.toFixed(3)),
+      ...(m.semantic !== undefined ? { semantic: Number(m.semantic.toFixed(3)) } : {}),
+      tokens: t,
+      preview: preview(m.content),
+    });
   }
   if (memLines.length) push('memories', memoriesSection(memLines), { items: memLines.length });
 
@@ -228,7 +250,7 @@ export function assembleContext(ctx: AppContext, input: AssembleInput): Assemble
   const kBudget = Math.floor(inputBudget * prefs.knowledgeRatio);
   const kBlocks: string[] = [];
   let kTokens = 0;
-  for (const hit of searchKnowledge(ctx, character.id, queryText, prefs.maxKnowledgeChunks)) {
+  for (const hit of searchKnowledge(ctx, character.id, queryText, prefs.maxKnowledgeChunks, semantic)) {
     const block = `[Source: ${hit.title}${hit.sourceRef ? ` — ${hit.sourceRef}` : ''} | status: ${hit.epistemicStatus}]\n${hit.content}`;
     const t = estimateTokens(block);
     if (kTokens + t > kBudget) continue;

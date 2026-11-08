@@ -1,4 +1,4 @@
-import { AUTO_LANGUAGE, COMMON_LANGUAGE_CODES } from '@persona/shared';
+import { AUTO_LANGUAGE, COMMON_LANGUAGE_CODES } from '@persona/shared/client';
 import { useTranslation } from 'react-i18next';
 import { languageLabel, nativeLanguageLabel } from '../lib/format';
 import { Select } from './ui';

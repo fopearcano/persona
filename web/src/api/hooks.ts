@@ -12,7 +12,7 @@ import type {
   Preferences,
   ScenarioDetail,
   ScenarioSummary,
-} from '@persona/shared';
+} from '@persona/shared/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 

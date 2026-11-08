@@ -66,7 +66,8 @@ export type MessageStatus = (typeof MESSAGE_STATUSES)[number];
 export const PROVIDER_TYPES = ['lmstudio', 'openai', 'openai-compatible', 'mock'] as const;
 export type ProviderType = (typeof PROVIDER_TYPES)[number];
 
-export const TURN_MODES = ['manual', 'round-robin'] as const;
+/** manual = sceglie l'autore; round-robin = rotazione; auto = il "regista" LLM sceglie chi parla. */
+export const TURN_MODES = ['manual', 'round-robin', 'auto'] as const;
 export type TurnMode = (typeof TURN_MODES)[number];
 
 export const SCENARIO_STATUSES = ['active', 'archived'] as const;
@@ -126,6 +127,8 @@ export const ERROR_CODES = [
   'busy',
   'invalid_import',
   'invalid_backup',
+  'invalid_pdf',
+  'embeddings_unsupported',
   'internal',
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];

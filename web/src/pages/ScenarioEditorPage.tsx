@@ -1,14 +1,14 @@
-import type { Conversation, Scenario, ScenarioDetail, ScenarioInput, ScenarioParticipant } from '@persona/shared';
-import { ArrowLeft, Drama, MessageSquarePlus, Plus, Save, Trash2, X } from 'lucide-react';
+import type { Conversation, Scenario, ScenarioDetail, ScenarioInput, ScenarioParticipant } from '@persona/shared/client';
+import { ArrowLeft, Download, Drama, MessageSquarePlus, Plus, Save, Trash2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
-import { api } from '../api/client';
+import { api, downloadUrl } from '../api/client';
 import { useCharacters, useConversations, useInvalidate, useMemories, useScenario } from '../api/hooks';
 import { ChatWorkspace } from '../components/chat/ChatWorkspace';
 import { LanguageSelect } from '../components/LanguageSelect';
 import { MemoryRow } from '../components/MemoryRow';
-import { Badge, Button, Card, EmptyState, ErrorBox, Field, IconButton, Input, Select, Spinner, Tabs, TextField, useErrorText } from '../components/ui';
+import { Badge, Button, Card, Checkbox, EmptyState, ErrorBox, Field, IconButton, Input, Modal, Select, Spinner, Tabs, TextField, useErrorText } from '../components/ui';
 import { formatRelative } from '../lib/format';
 import { useUi } from '../stores/ui';
 
@@ -42,6 +42,8 @@ export function ScenarioEditorPage() {
   const invalidate = useInvalidate();
   const toast = useUi((s) => s.toast);
   const errorText = useErrorText();
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportSessions, setExportSessions] = useState(true);
 
   if (isLoading) return <Spinner />;
   if (error || !scenario) return <div className="p-6"><ErrorBox error={error} /></div>;
@@ -65,6 +67,9 @@ export function ScenarioEditorPage() {
             <ArrowLeft className="size-4" />
           </Link>
           <h1 className="flex-1 truncate text-lg font-semibold">{scenario.title}</h1>
+          <Button icon={<Download className="size-4" />} onClick={() => setExportOpen(true)}>
+            {t('scenarios.export')}
+          </Button>
           <Button
             variant="danger"
             icon={<Trash2 className="size-4" />}
@@ -92,6 +97,26 @@ export function ScenarioEditorPage() {
           ]}
         />
       </div>
+      <Modal open={exportOpen} onClose={() => setExportOpen(false)} title={`${t('scenarios.export')} — ${scenario.title}`}>
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-muted">{t('scenarios.exportHelp')}</p>
+          <Checkbox label={t('scenarios.exportSessions')} checked={exportSessions} onChange={setExportSessions} />
+          <div className="flex justify-end gap-2">
+            <Button onClick={() => setExportOpen(false)}>{t('common.cancel')}</Button>
+            <Button
+              variant="primary"
+              icon={<Download className="size-4" />}
+              onClick={() => {
+                downloadUrl(`/api/scenarios/${scenario.id}/export?sessions=${exportSessions ? 1 : 0}`);
+                toast(t('toast.exported'), 'success');
+                setExportOpen(false);
+              }}
+            >
+              {t('common.export')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
       <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-5">
         {tab === 'details' && <DetailsTab scenario={scenario} onSaved={() => void run(async () => undefined, t('toast.saved'))} />}
         {tab === 'participants' && <ParticipantsTab scenario={scenario} run={run} />}

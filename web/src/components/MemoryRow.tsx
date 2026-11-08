@@ -1,5 +1,5 @@
-import type { EpistemicStatus, Memory } from '@persona/shared';
-import { EPISTEMIC_STATUSES } from '@persona/shared';
+import type { EpistemicStatus, Memory } from '@persona/shared/client';
+import { EPISTEMIC_STATUSES } from '@persona/shared/client';
 import { Archive, ArchiveRestore, ArrowUpCircle, Check, Pencil, Pin, PinOff, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';

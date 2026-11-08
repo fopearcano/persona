@@ -1,6 +1,6 @@
-import type { Conversation } from '@persona/shared';
+import type { Conversation } from '@persona/shared/client';
 import { MessageSquarePlus } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router';
 import { api } from '../api/client';
@@ -52,6 +52,21 @@ export function DialoguePage() {
   const invalidate = useInvalidate();
   const toast = useUi((s) => s.toast);
   const errorText = useErrorText();
+
+  // Ripristino della sessione: riapre l'ultima conversazione usata con il personaggio.
+  useEffect(() => {
+    if (!characterId) return;
+    const key = `persona.lastConversation.${characterId}`;
+    try {
+      if (conversationId) localStorage.setItem(key, conversationId);
+      else if (conversations) {
+        const last = localStorage.getItem(key);
+        if (last && conversations.some((c) => c.id === last)) navigate(`/dialogue/${characterId}/${last}`, { replace: true });
+      }
+    } catch {
+      /* localStorage non disponibile */
+    }
+  }, [characterId, conversationId, conversations, navigate]);
 
   const create = async () => {
     if (!characterId) return;

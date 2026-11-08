@@ -6,7 +6,7 @@ export interface ChatMessage {
 }
 
 /** Scopo della richiesta: i provider reali lo ignorano, il mock lo usa per risposte deterministiche. */
-export type InferencePurpose = 'character' | 'analysis' | 'summarize' | 'extract' | 'consistency' | 'title' | 'test';
+export type InferencePurpose = 'character' | 'analysis' | 'summarize' | 'extract' | 'consistency' | 'title' | 'turn' | 'test';
 
 export interface InferenceParams {
   model: string;
@@ -34,6 +34,8 @@ export interface LlmProvider {
   readonly type: ProviderType;
   listModels(signal?: AbortSignal): Promise<ModelInfo[]>;
   chatStream(messages: ChatMessage[], params: InferenceParams, signal?: AbortSignal): AsyncIterable<ChatChunk>;
+  /** Embedding dei testi (stesso ordine dell'input). Facoltativo: non tutti i provider lo offrono. */
+  embed?(texts: string[], model: string, signal?: AbortSignal): Promise<number[][]>;
 }
 
 export class LlmError extends Error {

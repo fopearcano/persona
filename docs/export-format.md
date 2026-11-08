@@ -86,3 +86,41 @@ File JSON in UTF-8, prodotto da `GET /api/characters/:id/export` e accettato da 
 ## Compatibilità
 
 Le versioni future del formato incrementeranno `version` e manterranno l'importazione delle versioni precedenti.
+
+---
+
+# Formato di esportazione degli scenari (`persona.scenario`, versione 1)
+
+Prodotto da `GET /api/scenarios/:id/export?sessions=0|1` e accettato da `POST /api/scenarios/import?characters=reuse|new&sessions=0|1`. Tipi di riferimento: `ScenarioExportV1` in [`shared/src/export-format.ts`](../shared/src/export-format.ts).
+
+```jsonc
+{
+  "format": "persona.scenario",
+  "version": 1,
+  "exportedAt": "…",
+  "app": { "name": "PERSONA", "version": "0.2.0" },
+  "scenario": { "id": "…", "title": "Aurora", "description": "…", "setting": "…", "timeline": "…", "environment": "…",
+                "initialSituation": "…", "currentSituation": "…", "knowledge": "…", "language": "en" | null,
+                "status": "active", "createdAt": "…", "updatedAt": "…" },
+  "characters": [ /* un oggetto persona.character v1 per ogni partecipante (senza conversazioni del Laboratorio) */ ],
+  "participants": [ { "characterId": "…", "role": "…", "roleDescription": "…", "knowledge": "…", "objectives": "…", "sortOrder": 0 } ],
+  "relationships": [ { "fromCharacterId": "…", "toCharacterId": "…", "description": "…" } ],
+  "events": [ { "title": "…", "content": "…", "fictionalTime": "Giorno 12", "sortOrder": 0, "createdAt": "…" } ],
+  "memories": [ /* memorie contestuali dello scenario, come in persona.character, più "characterId" */ ],
+  "sessions": [
+    { "id": "…", "kind": "scenario|simulation", "title": "…", "language": "auto", "defaultMode": "dialogue",
+      "turnMode": "manual|round-robin|auto", "characterId": "…" | null, "participantIds": ["…"],
+      "createdAt": "…", "updatedAt": "…",
+      "messages": [ { "seq": 1, "role": "narrator", "characterId": null, "speakerName": null, "content": "…", "mode": "dialogue",
+                      "language": null, "status": "complete", "model": null, "createdAt": "…" } ],
+      "summaries": [ { "fromSeq": 1, "toSeq": 20, "content": "…", "createdAt": "…" } ] }
+  ]
+}
+```
+
+## Regole di importazione
+
+- Viene sempre creato un **nuovo** scenario.
+- `characters=reuse` (predefinito): i personaggi il cui id esiste già nel database vengono riutilizzati così come sono (la loro identità non viene modificata); gli altri vengono importati come nuove identità. `characters=new`: tutti i personaggi vengono importati come nuove identità.
+- Partecipanti, relazioni, eventi, sessioni (con messaggi e riassunti) e memorie contestuali vengono ricollegati ai personaggi importati o riutilizzati. Le memorie contestuali restano isolate nel nuovo scenario.
+- I messaggi delle sessioni importate sono considerati già elaborati per la memoria (le memorie contestuali arrivano con il file).

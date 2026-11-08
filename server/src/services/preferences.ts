@@ -26,6 +26,12 @@ export const DEFAULT_PREFERENCES: Preferences = {
     maxExcerpts: 4,
     includeExcerpts: true,
   },
+  embeddings: {
+    enabled: false,
+    modelConfigId: null,
+    model: '',
+    semanticWeight: 0.6,
+  },
 };
 
 const KEY = 'preferences';
@@ -38,6 +44,7 @@ export function getPreferences(ctx: AppContext): Preferences {
     ...stored,
     memory: { ...DEFAULT_PREFERENCES.memory, ...(stored.memory ?? {}) },
     context: { ...DEFAULT_PREFERENCES.context, ...(stored.context ?? {}) },
+    embeddings: { ...DEFAULT_PREFERENCES.embeddings, ...(stored.embeddings ?? {}) },
   };
 }
 
@@ -46,9 +53,12 @@ export function updatePreferences(ctx: AppContext, input: PreferencesUpdate): Pr
   const current = getPreferences(ctx);
   const next: Preferences = {
     ...current,
-    ...Object.fromEntries(Object.entries(patch).filter(([k, v]) => v !== undefined && k !== 'memory' && k !== 'context')),
+    ...Object.fromEntries(
+      Object.entries(patch).filter(([k, v]) => v !== undefined && k !== 'memory' && k !== 'context' && k !== 'embeddings'),
+    ),
     memory: { ...current.memory, ...(patch.memory ?? {}) },
     context: { ...current.context, ...(patch.context ?? {}) },
+    embeddings: { ...current.embeddings, ...(patch.embeddings ?? {}) },
   } as Preferences;
   const value = JSON.stringify(next);
   ctx.dbm.db

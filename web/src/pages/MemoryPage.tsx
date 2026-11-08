@@ -1,5 +1,5 @@
-import type { EpistemicStatus, MemoryCategory, MemoryConsistencyReport, MemoryStatus } from '@persona/shared';
-import { EPISTEMIC_STATUSES, MEMORY_CATEGORIES, MEMORY_STATUSES } from '@persona/shared';
+import type { EpistemicStatus, MemoryCategory, MemoryConsistencyReport, MemoryStatus } from '@persona/shared/client';
+import { EPISTEMIC_STATUSES, MEMORY_CATEGORIES, MEMORY_STATUSES } from '@persona/shared/client';
 import { Plus, ScanSearch, ShieldCheck } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +18,7 @@ interface RetrievedRow {
   category: MemoryCategory;
   content: string;
   score?: number;
+  semantic?: number;
   importance: number;
 }
 
@@ -199,7 +200,7 @@ function RetrievalCard({ characterId, scenarios }: { characterId: string; scenar
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState('');
-  const [res, setRes] = useState<{ core: RetrievedRow[]; scoped: RetrievedRow[] } | null>(null);
+  const [res, setRes] = useState<{ mode: 'lexical' | 'hybrid'; semanticError: string | null; core: RetrievedRow[]; scoped: RetrievedRow[] } | null>(null);
   return (
     <Card title={t('memory.retrievalPreview')}>
       <form
@@ -229,6 +230,8 @@ function RetrievalCard({ characterId, scenarios }: { characterId: string; scenar
       </form>
       {res && (
         <div className="mt-3 flex flex-col gap-2 text-xs">
+          <Badge tone={res.mode === 'hybrid' ? 'accent' : 'neutral'}>{res.mode === 'hybrid' ? t('memory.modeHybrid') : t('memory.modeLexical')}</Badge>
+          {res.semanticError && <div className="text-warn">{t('inspector.semanticError', { error: res.semanticError })}</div>}
           <div className="font-medium text-muted">{t('memory.coreAlways')}</div>
           {res.core.length === 0 && <div className="text-muted">—</div>}
           {res.core.map((m) => (
@@ -242,6 +245,7 @@ function RetrievalCard({ characterId, scenarios }: { characterId: string; scenar
               <span className="flex-1">{m.content}</span>
               <span className="font-mono text-muted" title={t('memory.score')}>
                 {m.score?.toFixed(2)}
+                {m.semantic !== undefined && <span className="text-accent" title={t('memory.semantic')}> ·{m.semantic.toFixed(2)}</span>}
               </span>
             </div>
           ))}

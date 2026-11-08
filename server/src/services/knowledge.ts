@@ -6,6 +6,7 @@ import type { Db } from '../db/client.js';
 import { knowledgeChunks, knowledgeSources } from '../db/schema.js';
 import { newId, notFound, nowIso, validate } from '../lib/util.js';
 import { getCharacterRow } from './characters.js';
+import { scheduleIndexing } from './embeddings.js';
 import { searchKnowledge } from './retrieval.js';
 
 type SourceRow = typeof knowledgeSources.$inferSelect;
@@ -98,6 +99,7 @@ export function createKnowledgeSource(ctx: AppContext, characterId: string, inpu
     tx.insert(knowledgeSources).values({ id, characterId, ...data, createdAt: ts, updatedAt: ts }).run();
     writeChunks(tx as unknown as Db, { id, characterId, content: data.content });
   });
+  scheduleIndexing(ctx);
   return getKnowledgeSource(ctx, id);
 }
 
@@ -108,6 +110,7 @@ export function updateKnowledgeSource(ctx: AppContext, id: string, input: Knowle
     tx.update(knowledgeSources).set({ ...data, updatedAt: nowIso() }).where(eq(knowledgeSources.id, id)).run();
     if (data.content !== existing.content) writeChunks(tx as unknown as Db, { id, characterId: existing.characterId, content: data.content });
   });
+  scheduleIndexing(ctx);
   return getKnowledgeSource(ctx, id);
 }
 

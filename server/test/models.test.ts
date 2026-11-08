@@ -49,7 +49,7 @@ describe('model configurations', () => {
     expect(down.error.code).toBe('llm_unavailable');
 
     const probe = await env.app.inject({ method: 'POST', url: '/api/model-configs/probe', payload: { providerType: 'mock' } });
-    expect(probe.json()).toHaveLength(3);
+    expect(probe.json()).toHaveLength(4);
   });
 
   it('changing the model preserves identity and memory', async () => {

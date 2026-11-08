@@ -113,6 +113,26 @@ export class OpenAICompatibleProvider implements LlmProvider {
     }
   }
 
+  async embed(texts: string[], model: string, signal?: AbortSignal): Promise<number[][]> {
+    if (texts.length === 0) return [];
+    const res = await this.request(
+      '/embeddings',
+      { method: 'POST', headers: this.headers(), body: JSON.stringify({ model, input: texts }) },
+      this.connectTimeoutMs,
+      signal,
+    );
+    if (!res.ok) await this.failFromResponse(res);
+    const body = (await res.json().catch(() => null)) as { data?: { embedding?: number[]; index?: number }[] } | null;
+    if (!body || !Array.isArray(body.data) || body.data.length !== texts.length) {
+      throw new LlmError('llm_bad_response', 'Risposta /embeddings non valida');
+    }
+    const sorted = [...body.data].sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+    return sorted.map((d) => {
+      if (!Array.isArray(d.embedding) || d.embedding.length === 0) throw new LlmError('llm_bad_response', 'Embedding mancante');
+      return d.embedding;
+    });
+  }
+
   async *chatStream(messages: ChatMessage[], params: InferenceParams, signal?: AbortSignal): AsyncIterable<ChatChunk> {
     const body: Record<string, unknown> = {
       model: params.model,

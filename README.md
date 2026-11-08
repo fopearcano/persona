@@ -65,15 +65,24 @@ Ogni personaggio può usare un motore diverso (editor del personaggio → scheda
 
 **OpenAI o altri provider**: aggiungi una configurazione di tipo *OpenAI* o *Compatibile OpenAI* (endpoint e chiave). La chiave resta sul backend locale e non viene mai inviata all'interfaccia; in alternativa usa la variabile d'ambiente `OPENAI_API_KEY`.
 
+### Recupero semantico multilingue (facoltativo)
+
+Per ritrovare memorie e documenti **per significato**, anche tra lingue diverse (una memoria salvata in russo recuperata da una domanda in italiano):
+
+1. in LM Studio scarica e carica un modello di **embedding multilingue** (ad esempio `bge-m3` o `multilingual-e5`);
+2. in **Impostazioni → Recupero semantico** attiva l'opzione, scegli l'endpoint (di solito la configurazione LM Studio) e il modello (o lascia *Automatico*), poi **Prova embedding** e **Indicizza ora**.
+
+Il recupero diventa ibrido (lessicale FTS5 + similarità tra embedding, con peso regolabile). Le nuove memorie e i nuovi documenti vengono indicizzati in background. Se il servizio di embedding non risponde, PERSONA torna automaticamente al solo recupero lessicale e lo segnala nel pannello di ispezione del contesto.
+
 ## Percorso tipico
 
-1. **Personaggi → Nuovo personaggio**: identità, biografia, psicologia (Big Five facoltativi), comunicazione, competenze, lingue (madrelingua, livelli), base di conoscenza.
+1. **Personaggi → Nuovo personaggio**: identità, biografia, psicologia (Big Five facoltativi), comunicazione, competenze, lingue (madrelingua, livelli), base di conoscenza (testo, Markdown, PDF).
 2. **Dialogo**: scegli il personaggio, crea una conversazione e parla in modalità *Dialogo*, *Intervista* o *Analisi esterna* (l'analisi non è mai presentata come parlato del personaggio). Puoi cambiare lingua di risposta in qualsiasi momento.
 3. **Elabora memoria** (o automaticamente oltre la soglia): riassunti incrementali ed estrazione di memorie con provenienza. Le nuove conversazioni ereditano le memorie pertinenti, non l'intera cronologia.
 4. **Memoria**: ispeziona, modifica, fissa, archivia, approva e promuovi le memorie; verifica di coerenza; anteprima del recupero.
 5. **Scenari**: crea un universo (ambientazione, cronologia, condizioni, eventi, conoscenze), aggiungi partecipanti con ruoli e relazioni, apri sessioni narrative. Le memorie della storia restano nello scenario.
-6. **Simulazioni**: scene condivise tra più personaggi; l'autore sceglie chi parla (o usa la rotazione) e può aggiungere narrazione o indicazioni di regia per il turno.
-7. **Personaggi → Esporta/Importa** per portare un'identità altrove; **Impostazioni → Backup** per salvare e ripristinare l'intero database.
+6. **Simulazioni**: scene condivise tra più personaggi; l'autore sceglie chi parla, oppure usa la rotazione o la **regia automatica** (il modello sceglie il parlante più naturale, con ripiego sulla rotazione); narrazione, indicazioni di regia per il turno, avanzamento di più turni consecutivi.
+7. **Personaggi → Esporta/Importa** per portare un'identità altrove; **Scenari → Esporta/Importa** per un universo completo (partecipanti, relazioni, eventi, sessioni, memorie contestuali); **Impostazioni → Backup** per l'intero database.
 
 ## Test e verifiche
 
@@ -98,7 +107,7 @@ node scripts/e2e-smoke.cjs /tmp/persona-shots   # in un altro terminale
 
 - Database: `data/persona.db` (SQLite, UTF-8). Backup in `data/backups/`.
 - **Backup**: Impostazioni → Backup (copia consistente tramite l'API di backup di SQLite). Il ripristino salva prima una copia di sicurezza del database corrente. Nota: il backup contiene anche le eventuali chiavi API salvate nelle configurazioni dei motori.
-- **Esportazione personaggi**: JSON documentato in [`docs/export-format.md`](docs/export-format.md). L'importazione crea sempre una **nuova** identità senza sovrascrivere dati esistenti.
+- **Esportazione personaggi e scenari**: JSON documentato in [`docs/export-format.md`](docs/export-format.md). L'importazione non sovrascrive mai dati esistenti (i personaggi di uno scenario possono essere riutilizzati se già presenti).
 
 ## Architettura in breve
 
@@ -107,7 +116,7 @@ Identità del personaggio → Recupero memorie → Assemblaggio contesto → Ada
 → Risposta in streaming → Salvataggio conversazione → Elaborazione controllata della memoria
 ```
 
-Monorepo npm: `shared/` (tipi e schemi), `server/` (Fastify, SQLite, Drizzle, servizi), `web/` (React). Dettagli in [`docs/architecture.md`](docs/architecture.md). Il backend è separato dall'avvio del server (`buildApp`) ed è servito su `localhost`: un futuro involucro Electron potrà avviarlo in-process e caricare la stessa interfaccia senza riscritture.
+Monorepo npm: `shared/` (tipi e schemi), `server/` (Fastify, SQLite, Drizzle, servizi), `web/` (React). Dettagli in [`docs/architecture.md`](docs/architecture.md). Il backend si avvia anche in-process con `startPersonaServer()` (`server/src/embedded.ts`, porta libera, cartella dati a scelta): un futuro involucro Electron potrà usarlo e caricare la stessa interfaccia senza riscritture.
 
 ## Sicurezza
 
@@ -118,19 +127,18 @@ Monorepo npm: `shared/` (tipi e schemi), `server/` (Fastify, SQLite, Drizzle, se
 ## Limiti noti
 
 - **LM Studio non è stato verificato dal vivo** nell'ambiente di sviluppo usato per questa versione (nessun server di modelli disponibile): l'integrazione è testata con un server finto compatibile. Segnalare eventuali differenze di comportamento dei modelli reali.
-- Il recupero è **lessicale** (SQLite FTS5, tokenizer `unicode61`): funziona per alfabeti latini, cirillici, greci; non riconosce sinonimi né traduzioni tra lingue e non segmenta testo cinese/giapponese/coreano. Gli embedding multilingue locali sono previsti (colonne `embedding` già nello schema).
+- Senza embedding il recupero è solo **lessicale** (SQLite FTS5, tokenizer `unicode61`): non riconosce sinonimi né traduzioni e non segmenta testo cinese/giapponese/coreano. Con il recupero semantico attivo la qualità dipende dal modello di embedding scelto; il confronto è esaustivo in memoria (adatto a migliaia di memorie, non a milioni). Gli estratti di conversazioni precedenti restano lessicali.
+- Il recupero semantico non è stato verificato con un modello di embedding reale in questo ambiente: è testato con l'endpoint `/v1/embeddings` di un server finto e con il provider mock.
 - La qualità dell'estrazione automatica di memorie dipende dalla capacità del modello di produrre JSON valido; in caso contrario non viene creata alcuna memoria (nessuna corruzione dei dati).
 - Il conteggio dei token è una stima (circa 3,5 caratteri per token); impostare la lunghezza del contesto con margine.
-- Estrazione di testo da PDF non ancora disponibile (solo testo e Markdown).
-- Gestione dei turni nelle simulazioni: scelta dell'autore o rotazione; la selezione automatica del parlante tramite LLM è prevista.
+- PDF: viene estratto solo il testo selezionabile (nessun OCR per i documenti scansionati).
+- La regia automatica dei turni dipende dalla capacità del modello di rispondere in JSON; in caso contrario si ripiega sulla rotazione.
 - La competenza linguistica e specialistica del personaggio è simulata ed è limitata dalle reali capacità del modello scelto.
 - Modificare un messaggio non rielabora le memorie già estratte da quel messaggio.
 
 ## Roadmap
 
-- Embedding locali (LM Studio `/v1/embeddings`) per recupero semantico multilingue.
-- Estrazione PDF nella base di conoscenza.
-- Gestione automatica dei turni nelle simulazioni.
-- Esportazione/importazione di scenari completi.
-- Involucro Electron.
+- Involucro Electron (il backend è già avviabile in-process con `startPersonaServer`).
 - Ulteriori lingue dell'interfaccia (francese, spagnolo, tedesco, portoghese).
+- Indice vettoriale (es. sqlite-vec) per basi di memoria molto grandi.
+- OCR per PDF scansionati.

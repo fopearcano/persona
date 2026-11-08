@@ -62,5 +62,10 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
       .map((h) => h.trim().toLowerCase())
       .filter(Boolean),
   };
+  // Se viene indicata solo la cartella dati, database e backup la seguono.
+  if (overrides.dataDir) {
+    base.databaseFile = resolve(overrides.dataDir, 'persona.db');
+    base.backupsDir = resolve(overrides.dataDir, 'backups');
+  }
   return { ...base, ...overrides };
 }

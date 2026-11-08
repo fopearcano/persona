@@ -251,8 +251,23 @@ export interface ContextMemoryMeta {
   id: string;
   category: MemoryCategory;
   score: number;
+  /** Similarità semantica normalizzata (0–1), se il recupero ibrido è attivo. */
+  semantic?: number;
   tokens: number;
   preview: string;
+}
+
+export interface RetrievalMeta {
+  /** lexical = solo FTS5; hybrid = FTS5 + similarità tra embedding. */
+  mode: 'lexical' | 'hybrid';
+  embeddingModel: string | null;
+  /** Motivo per cui il recupero semantico non è stato usato (errore del servizio di embedding). */
+  semanticError: string | null;
+}
+
+export interface TurnSelectionMeta {
+  mode: TurnMode;
+  reason: string | null;
 }
 
 export interface ContextMeta {
@@ -273,6 +288,8 @@ export interface ContextMeta {
   historyIncluded: number;
   historyOmitted: number;
   directive: string | null;
+  retrieval: RetrievalMeta;
+  turnSelection: TurnSelectionMeta | null;
 }
 
 export interface Message {
@@ -458,6 +475,17 @@ export interface ContextPreferences {
   includeExcerpts: boolean;
 }
 
+export interface EmbeddingPreferences {
+  /** Recupero semantico con embedding locali (affiancato a FTS5). */
+  enabled: boolean;
+  /** Configurazione da cui prendere endpoint e chiave (null = motore predefinito). */
+  modelConfigId: string | null;
+  /** Modello di embedding (es. un modello multilingue caricato in LM Studio). */
+  model: string;
+  /** Peso della similarità semantica rispetto a quella lessicale (0–1). */
+  semanticWeight: number;
+}
+
 export interface Preferences {
   uiLanguage: string;
   theme: Theme;
@@ -465,6 +493,31 @@ export interface Preferences {
   defaultModelConfigId: string | null;
   memory: MemoryPreferences;
   context: ContextPreferences;
+  embeddings: EmbeddingPreferences;
+}
+
+export interface EmbeddingStatus {
+  enabled: boolean;
+  model: string | null;
+  memories: { indexed: number; total: number };
+  chunks: { indexed: number; total: number };
+  running: boolean;
+  lastError: string | null;
+  lastRunAt: string | null;
+}
+
+export interface EmbeddingTestResult {
+  ok: boolean;
+  model: string;
+  dimensions: number | null;
+  latencyMs: number;
+  error: { code: ErrorCode; message: string } | null;
+}
+
+export interface PdfExtraction {
+  title: string;
+  pages: number;
+  text: string;
 }
 
 /* ------------------------------------------------------------------ */

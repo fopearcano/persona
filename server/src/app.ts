@@ -61,7 +61,7 @@ export async function buildApp(opts: BuildOptions = {}): Promise<{ app: FastifyI
   });
 
   // Ripristino del database: corpo binario.
-  app.addContentTypeParser(['application/octet-stream', 'application/vnd.sqlite3'], { parseAs: 'buffer', bodyLimit: 1024 * 1024 * 1024 }, (_req, body, done) =>
+  app.addContentTypeParser(['application/octet-stream', 'application/vnd.sqlite3', 'application/pdf'], { parseAs: 'buffer', bodyLimit: 1024 * 1024 * 1024 }, (_req, body, done) =>
     done(null, body),
   );
 

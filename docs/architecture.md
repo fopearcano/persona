@@ -13,7 +13,7 @@ PERSONA separa rigorosamente tre componenti:
 ## Flusso di una risposta
 
 1. **Identità**: `getCharacter` carica profilo, tratti, lingue e competenze.
-2. **Recupero** (`services/retrieval.ts`): memorie core (sempre, entro budget) + memorie pertinenti al messaggio corrente via FTS5, nel perimetro consentito; frammenti della base di conoscenza; estratti di conversazioni precedenti dello stesso perimetro.
+2. **Recupero** (`services/retrieval.ts`): memorie core (sempre, entro budget) + memorie pertinenti al messaggio corrente via FTS5 e, se attivi, embedding locali (recupero ibrido, `services/embeddings.ts`), nel perimetro consentito; frammenti della base di conoscenza; estratti di conversazioni precedenti dello stesso perimetro.
 3. **Assemblaggio** (`services/context-engine.ts`, `services/prompts.ts`), in ordine:
    istruzioni applicative → identità canonica (+ memorie core) → personalità → comunicazione → competenze → profilo linguistico e lingua di risposta → modalità → contesto di scenario (marcato come temporaneo) → memorie recuperate → conoscenza → riassunto incrementale → estratti → indicazione di regia → cronologia recente → ultimo messaggio.
 4. **Adattatore LLM** (`llm/openai-compatible.ts`): `POST /chat/completions` in streaming; separa il ragionamento (`reasoning_content` o blocchi `<think>`); errori normalizzati in codici stabili (`llm_unavailable`, `llm_timeout`, `llm_model_not_found`, `llm_auth`, …).
@@ -36,7 +36,15 @@ PERSONA separa rigorosamente tre componenti:
 | `semantic` | Estrazione dal Laboratorio; autore; promozione | Laboratorio e scenari |
 | `contextual` | Estrazione da sessioni/simulazioni di uno scenario | Solo quello scenario |
 
-Stati: `active`, `proposed` (non usata finché non approvata), `archived` (esclusa dal recupero). Punteggio di recupero: `0.6·pertinenza + 0.25·importanza + 0.15·recenza (+0.3 se fissata)`.
+Stati: `active`, `proposed` (non usata finché non approvata), `archived` (esclusa dal recupero). Punteggio di recupero: `0.6·pertinenza + 0.25·importanza + 0.15·recenza (+0.3 se fissata)`, dove la pertinenza è lessicale (bm25 normalizzato) oppure, con gli embedding attivi, `w·semantica + (1−w)·lessicale`.
+
+### Recupero semantico (embedding locali, facoltativo)
+
+- Endpoint compatibile OpenAI `/v1/embeddings` (es. modello multilingue in LM Studio); configurazione in `preferences.embeddings` (endpoint, modello o selezione automatica del primo modello di tipo `embeddings`, peso semantico).
+- Vettori Float32 in base64 nelle colonne `memories.embedding` e `knowledge_chunks.embedding`, con `embedding_model`: cambiando modello i vettori vengono ricalcolati. Modificare il testo di una memoria azzera il suo embedding.
+- Indicizzazione in background dopo ogni inserimento/modifica (`scheduleIndexing`) e su richiesta (`POST /api/embeddings/reindex`).
+- La similarità coseno viene normalizzata rispetto alla media dei candidati del perimetro (le scale assolute variano tra modelli); entrano tra i candidati solo le memorie sopra soglia. Le memorie non ancora indicizzate restano valutate lessicalmente.
+- Se l'embedding della query fallisce, il contesto usa il solo recupero lessicale e `contextMeta.retrieval.semanticError` lo registra.
 
 Verifica di coerenza: controlli deterministici (duplicati, finzione nella memoria core, perimetro, proposte in attesa) e, a richiesta, analisi delle contraddizioni tramite LLM.
 
@@ -48,7 +56,12 @@ Verifica di coerenza: controlli deterministici (duplicati, finzione nella memori
 
 ## Simulazioni multi-personaggio
 
-Per ogni turno il backend assembla il contesto **del solo personaggio selezionato**: le sue battute precedenti diventano turni `assistant`, quelle degli altri turni `user` con prefisso `[Nome]:`, la narrazione `[Narration]`, l'autore `[Author]`. Turni scelti dall'autore oppure rotazione (`turnMode = 'round-robin'`); la funzione `nextSpeaker` è il punto di estensione per una futura selezione automatica.
+Per ogni turno il backend assembla il contesto **del solo personaggio selezionato**: le sue battute precedenti diventano turni `assistant`, quelle degli altri turni `user` con prefisso `[Nome]:`, la narrazione `[Narration]`, l'autore `[Author]`.
+
+Gestione dei turni (`services/turns.ts`, `conversations.turn_mode`):
+- `manual`: sceglie l'autore (i suoi messaggi non generano risposte automatiche);
+- `round-robin`: partecipante successivo all'ultimo che ha parlato;
+- `auto`: un prompt di regia (`turnSelectionPrompt`) fornisce partecipanti, ruoli, obiettivi e trascrizione recente e chiede al modello `{"speaker","reason"}`; risposta non valida o errore → rotazione. La scelta e il motivo sono salvati in `contextMeta.turnSelection`.
 
 ## Multilingua
 
@@ -65,14 +78,29 @@ Per ogni turno il backend assembla il contesto **del solo personaggio selezionat
 
 ## Predisposizione per Electron
 
-- `server/src/app.ts` esporta `buildApp()` separato da `index.ts`: un processo Electron può avviare il backend in-process (o come processo figlio) impostando `PERSONA_DATA_DIR` su `app.getPath('userData')`.
+- `server/src/embedded.ts` esporta `startPersonaServer({ dataDir, port: 0, webDistDir })`, che avvia il backend su una porta libera e restituisce `{ url, close() }`. Un processo principale Electron potrà fare:
+
+  ```ts
+  const persona = await startPersonaServer({ dataDir: app.getPath('userData'), port: 0, webDistDir: join(__dirname, 'web') });
+  await mainWindow.loadURL(persona.url);
+  app.on('before-quit', () => void persona.close());
+  ```
+
+  Il backend usa `better-sqlite3` (modulo nativo): in un pacchetto Electron va ricompilato per la versione di Electron (`electron-rebuild`).
 - Il frontend usa percorsi relativi `/api` e funziona servito dal backend stesso.
 - Nessuna dipendenza da servizi cloud.
 
+## Base di conoscenza
+
+Documenti di testo, Markdown e PDF (estrazione del testo con `unpdf`/pdf.js in `services/pdf.ts`, senza OCR), suddivisi in frammenti di ~1200 caratteri con sovrapposizione, indicizzati in FTS5 e, se attivi, con embedding. Ogni fonte ha uno statuto epistemico che accompagna gli estratti nel prompt.
+
+## Prestazioni
+
+- Il frontend importa `@persona/shared/client` (senza gli schemi zod) e carica le pagine in modo differito.
+- Le memorie sono filtrate per personaggio e perimetro prima del confronto semantico; i vettori decodificati sono tenuti in una cache in memoria invalidata da scritture e ripristini.
+
 ## Estensioni previste
 
-1. `Retriever` semantico con embedding locali (LM Studio `/v1/embeddings`), combinato con FTS5.
-2. Estrazione PDF per la base di conoscenza.
-3. Selezione automatica del parlante nelle simulazioni.
-4. Esportazione di scenari completi (bundle multi-personaggio).
-5. Lingue aggiuntive dell'interfaccia.
+1. Involucro Electron basato su `startPersonaServer`.
+2. Lingue aggiuntive dell'interfaccia.
+3. Indice vettoriale dedicato per basi di memoria molto grandi; OCR per PDF scansionati.

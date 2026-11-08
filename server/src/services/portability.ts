@@ -33,6 +33,7 @@ import {
 import { AppError, newId, nowIso, validate } from '../lib/util.js';
 import { createCharacter, getCharacter, snapshotOf } from './characters.js';
 import { createKnowledgeSource } from './knowledge.js';
+import { scheduleIndexing } from './embeddings.js';
 import { listMemories } from './memory.js';
 
 export interface ExportOptions {
@@ -418,6 +419,7 @@ export function importCharacter(ctx: AppContext, payload: unknown, opts: ImportO
       result.imported.knowledge++;
     }
   }
+  scheduleIndexing(ctx);
   result.character = getCharacter(ctx, created.id);
   return result;
 }

@@ -33,6 +33,13 @@ beforeAll(async () => {
         res.end(JSON.stringify({ data: [{ id: 'qwen-local' }] }));
         return;
       }
+      if (req.url === '/v1/embeddings') {
+        const input = (JSON.parse(body) as { input: string[] }).input;
+        res.setHeader('Content-Type', 'application/json');
+        // Ordine invertito di proposito: il client deve riordinare per indice.
+        res.end(JSON.stringify({ data: input.map((t, i) => ({ index: i, embedding: [t.length, i] })).reverse() }));
+        return;
+      }
       if (req.url === '/v1/chat/completions') {
         lastBody = JSON.parse(body);
         if (lastBody.model === 'missing') {
@@ -106,6 +113,14 @@ describe('OpenAI-compatible provider (LM Studio)', () => {
     await expect(collectChat(p, [{ role: 'user', content: 'x' }], { model: 'auth' })).rejects.toMatchObject({ code: 'llm_auth' });
     const down = new OpenAICompatibleProvider({ type: 'lmstudio', baseUrl: 'http://127.0.0.1:9/v1' });
     await expect(down.listModels()).rejects.toBeInstanceOf(LlmError);
+  });
+
+  it('computes embeddings in input order', async () => {
+    const p = new OpenAICompatibleProvider({ type: 'lmstudio', baseUrl: base });
+    expect(await p.embed(['ab', 'abcd'], 'text-embedding-x')).toEqual([
+      [2, 0],
+      [4, 1],
+    ]);
   });
 
   it('supports cancellation', async () => {

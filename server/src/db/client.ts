@@ -34,6 +34,8 @@ function open(file: string): Handle {
  */
 export class DatabaseManager {
   private handle: Handle;
+  /** Incrementato a ogni sostituzione del database (invalida le cache in memoria). */
+  generation = 0;
 
   constructor(public readonly file: string) {
     this.handle = open(file);
@@ -88,6 +90,7 @@ export class DatabaseManager {
     for (const suffix of ['-wal', '-shm']) {
       if (existsSync(this.file + suffix)) rmSync(this.file + suffix);
     }
+    this.generation++;
     try {
       copyFileSync(source, this.file);
       this.handle = open(this.file);

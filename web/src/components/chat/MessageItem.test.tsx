@@ -1,4 +1,4 @@
-import type { Message } from '@persona/shared';
+import type { Message } from '@persona/shared/client';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import i18n from '../../i18n';

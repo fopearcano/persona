@@ -16,7 +16,18 @@ export class MockProvider implements LlmProvider {
       { id: 'mock-persona', loaded: true, contextLength: 32768, type: 'llm' },
       { id: 'mock-fail', loaded: true, contextLength: 8192, type: 'llm' },
       { id: 'mock-slow', loaded: true, contextLength: 8192, type: 'llm' },
+      { id: 'mock-embed', loaded: true, contextLength: 2048, type: 'embeddings' },
     ];
+  }
+
+  /**
+   * Embedding deterministico: "bag of words" con hashing, più un piccolo dizionario di
+   * concetti multilingue usato nei test per simulare il recupero cross-lingua.
+   * NON è un modello semantico.
+   */
+  async embed(texts: string[], model: string): Promise<number[][]> {
+    if (model.includes('fail')) throw new LlmError('llm_unavailable', 'Provider mock: embedding non disponibile');
+    return texts.map((t) => mockVector(t));
   }
 
   private respond(messages: ChatMessage[], params: InferenceParams): string {
@@ -32,6 +43,16 @@ export class MockProvider implements LlmProvider {
         return `Riassunto simulato. ${firstWords(lastUser, 40)}`;
       case 'consistency':
         return JSON.stringify({ issues: [] });
+      case 'turn': {
+        // Sceglie il partecipante nominato nell'ultima battuta (diverso dall'ultimo a parlare), altrimenti il primo disponibile.
+        const names = [...lastUser.matchAll(/^- (.+?) \|/gm)].map((m) => m[1].trim());
+        const lastSpeaker = lastUser.match(/^LAST SPEAKER: (.+)$/m)?.[1]?.trim() ?? '';
+        const lastLine = lastUser.split('\n').filter((l) => l.startsWith('[')).at(-1) ?? '';
+        const candidates = names.filter((n) => n !== lastSpeaker);
+        const addressed = candidates.find((n) => lastLine.toLowerCase().includes(n.split(' ')[0].toLowerCase()));
+        const speaker = addressed ?? candidates[0] ?? names[0] ?? '';
+        return JSON.stringify({ speaker, reason: addressed ? 'addressed in the last line' : 'next available participant' });
+      }
       case 'extract': {
         const lines = lastUser.split('\n').filter((l) => /^\[(AUTHOR|AUTORE|NARRATOR)/i.test(l));
         const source = lines.at(-1)?.replace(/^\[[^\]]+\]:?\s*/, '') ?? firstWords(lastUser, 12);
@@ -67,4 +88,30 @@ export class MockProvider implements LlmProvider {
       yield { type: 'content', text: part };
     }
   }
+}
+
+const CONCEPTS: [string, string[]][] = [
+  ['star', ['stell', 'star', 'звезд', 'étoil', 'etoil', 'estrell', 'stern']],
+  ['explode', ['esplo', 'explod', 'взорв', 'взрыв', 'explos']],
+  ['supernova', ['supernov', 'сверхнов']],
+  ['telescope', ['telescop', 'телескоп', 'teleskop']],
+  ['cat', ['gatt', 'cat', 'кошк', 'кот', 'chat', 'katz']],
+  ['father', ['padr', 'father', 'отец', 'отца', 'père', 'vater']],
+];
+
+function hash(s: string): number {
+  let h = 2166136261;
+  for (const ch of s) h = Math.imul(h ^ (ch.codePointAt(0) ?? 0), 16777619);
+  return h >>> 0;
+}
+
+export function mockVector(text: string, dims = 96): number[] {
+  const v = new Array<number>(dims).fill(0);
+  for (const w of text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []) {
+    if (w.length < 3) continue;
+    const concept = CONCEPTS.find(([, stems]) => stems.some((s) => w.startsWith(s)))?.[0];
+    v[hash(concept ? `concept:${concept}` : w) % dims] += concept ? 3 : 1;
+  }
+  const norm = Math.hypot(...v) || 1;
+  return v.map((x) => x / norm);
 }
