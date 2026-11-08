@@ -18,3 +18,4 @@ playwright-report/
 # App desktop: installer e smoke test
 desktop/release/
 desktop/smoke-shots/
+desktop/electron-zips/

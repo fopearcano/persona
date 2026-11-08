@@ -68,10 +68,13 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: linux
+            electron: linux-x64
           - os: windows-latest
             platform: win
+            electron: win32-x64
           - os: macos-latest
             platform: mac
+            electron: darwin-arm64 darwin-x64
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -89,8 +92,19 @@ jobs:
           path: web/dist
       - name: Dipendenze dell'app desktop
         run: npm ci --no-workspaces
+      # I download dalle release di GitHub possono fallire in modo intermittente (504):
+      # Electron viene scaricato con tentativi ripetuti e verificato con i checksum ufficiali.
+      - name: Electron (download verificato)
+        run: node fetch-electron.mjs electron-zips ${{ matrix.electron }}
       - name: Installer
-        run: npm run dist:${{ matrix.platform }}
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if npm run dist:${{ matrix.platform }} -- -c.electronDist=electron-zips; then exit 0; fi
+            echo "::warning::Creazione degli installer non riuscita (tentativo $attempt), nuovo tentativo tra 30 s"
+            sleep 30
+          done
+          exit 1
         env:
           # Nessun certificato di firma: installer non firmati (macOS: firma ad hoc).
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
