@@ -21,13 +21,13 @@ export class MockProvider implements LlmProvider {
 
   private respond(messages: ChatMessage[], params: InferenceParams): string {
     const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n');
-    const lastUser = [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
+    const lastUser = ([...messages].reverse().find((m) => m.role === 'user')?.content ?? '').replace(/<\/?data[^>]*>/g, '').trim();
     const firstWords = (text: string, n: number) => text.replace(/\s+/g, ' ').trim().split(' ').slice(0, n).join(' ');
     switch (params.purpose) {
       case 'test':
         return 'OK';
       case 'title':
-        return `Conversazione: ${firstWords(lastUser.replace(/^.*?:\s*/m, ''), 5)}`;
+        return `Conversazione: ${firstWords(lastUser.replace(/^\[[^\]]+\]:\s*/, ''), 5)}`;
       case 'summarize':
         return `Riassunto simulato. ${firstWords(lastUser, 40)}`;
       case 'consistency':
