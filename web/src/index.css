@@ -10,8 +10,8 @@
   --border: #dcdcd6;
   --text: #1c1d21;
   --muted: #6b6d75;
-  --accent: #2f5bd3;
-  --accent-soft: #e5ecfb;
+  --accent: #c2410c; /* arancione: 5,2:1 su bianco */
+  --accent-soft: #fef1e8;
   --accent-fg: #ffffff;
   --danger: #b4232f;
   --warn: #9a6200;
@@ -28,9 +28,9 @@
   --border: #2b2f37;
   --text: #e3e4e8;
   --muted: #8e93a0;
-  --accent: #8fb3ff;
-  --accent-soft: #1d2a45;
-  --accent-fg: #0d1426;
+  --accent: #4ade80; /* verde: 10:1 sullo sfondo scuro */
+  --accent-soft: #15301f;
+  --accent-fg: #0b1f12;
   --danger: #f2777f;
   --warn: #e3b25c;
   --ok: #6fcf9b;
