@@ -21,6 +21,8 @@ export interface AppConfig {
   version: string;
   /** Ritardo artificiale tra i chunk del provider mock (ms). */
   mockDelayMs: number;
+  /** Host aggiuntivi accettati oltre a localhost (PERSONA_ALLOWED_HOSTS, separati da virgola). */
+  allowedHosts: string[];
 }
 
 /** Carica un file .env semplice (KEY=VALUE) senza sovrascrivere variabili già definite. */
@@ -55,6 +57,10 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     production,
     version: pkg.version,
     mockDelayMs: Number(env.PERSONA_MOCK_DELAY_MS ?? 15),
+    allowedHosts: (env.PERSONA_ALLOWED_HOSTS ?? '')
+      .split(',')
+      .map((h) => h.trim().toLowerCase())
+      .filter(Boolean),
   };
   return { ...base, ...overrides };
 }

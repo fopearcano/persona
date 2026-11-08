@@ -36,6 +36,30 @@ export async function buildApp(opts: BuildOptions = {}): Promise<{ app: FastifyI
     background: new Set(),
   };
 
+  // Sicurezza locale: accetta solo richieste indirizzate a localhost (protezione da DNS
+  // rebinding) e rifiuta le scritture provenienti da altre origini (CSRF dal browser).
+  const allowedHosts = new Set(['localhost', '127.0.0.1', '[::1]', '::1', ...config.allowedHosts]);
+  const hostOf = (value: string) => value.replace(/:\d+$/, '').toLowerCase();
+  app.removeContentTypeParser('text/plain');
+  app.addHook('onRequest', async (req, reply) => {
+    const host = hostOf(req.headers.host ?? '');
+    if (!allowedHosts.has(host)) {
+      return reply.code(403).send({ error: { code: 'validation', message: `Host non consentito: ${host}` } });
+    }
+    const origin = req.headers.origin;
+    if (origin && req.method !== 'GET' && req.method !== 'HEAD') {
+      let originHost = '';
+      try {
+        originHost = new URL(origin).hostname.toLowerCase();
+      } catch {
+        originHost = '';
+      }
+      if (!allowedHosts.has(originHost) && !allowedHosts.has(`[${originHost}]`)) {
+        return reply.code(403).send({ error: { code: 'validation', message: `Origine non consentita: ${origin}` } });
+      }
+    }
+  });
+
   // Ripristino del database: corpo binario.
   app.addContentTypeParser(['application/octet-stream', 'application/vnd.sqlite3'], { parseAs: 'buffer', bodyLimit: 1024 * 1024 * 1024 }, (_req, body, done) =>
     done(null, body),
