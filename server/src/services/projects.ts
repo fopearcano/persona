@@ -241,6 +241,15 @@ export interface ProjectImportResult {
 }
 
 /** Apre un progetto salvato su file come NUOVO progetto; non sovrascrive mai dati esistenti. */
+/** Nome libero per un progetto aperto da file: "Nome", altrimenti "Nome (2)", "Nome (3)", … */
+function availableProjectName(ctx: AppContext, name: string): string {
+  const taken = new Set(ctx.dbm.db.select({ name: projects.name }).from(projects).all().map((r) => r.name));
+  if (!taken.has(name)) return name;
+  let n = 2;
+  while (taken.has(`${name} (${n})`)) n++;
+  return `${name} (${n})`;
+}
+
 export function importProject(ctx: AppContext, payload: unknown, options: unknown): ProjectImportResult {
   const opts = validate(projectImportOptionsSchema, options);
   let data: z.output<typeof projectBundleSchema>;
@@ -257,7 +266,7 @@ export function importProject(ctx: AppContext, payload: unknown, options: unknow
   // Tutto o niente: un errore a metà non lascia progetti o personaggi parziali.
   const projectId = ctx.dbm.sqlite.transaction(() => {
     const project = createProject(ctx, {
-      name: data.project.name,
+      name: availableProjectName(ctx, data.project.name),
       description: data.project.description ?? null,
       status: data.project.status ?? 'active',
     });

@@ -8,6 +8,7 @@ import { useCharacters, useConversations, useInvalidate } from '../api/hooks';
 import { ChatWorkspace } from '../components/chat/ChatWorkspace';
 import { Button, Checkbox, cx, EmptyState, Select, Spinner, useErrorText } from '../components/ui';
 import { formatRelative } from '../lib/format';
+import { useActiveProject } from '../lib/project';
 import { useUi } from '../stores/ui';
 
 export function ConversationList({
@@ -46,7 +47,8 @@ export function DialoguePage() {
   const { characterId, conversationId } = useParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { data: characters, isLoading } = useCharacters('active');
+  const { projectId, project } = useActiveProject();
+  const { data: characters, isLoading } = useCharacters('active', projectId);
   const [showArchived, setShowArchived] = useState(false);
   const { data: conversations } = useConversations({ characterId, kind: 'lab', archived: showArchived ? '1' : undefined }, !!characterId);
   const invalidate = useInvalidate();
@@ -120,7 +122,7 @@ export function DialoguePage() {
       <section className="min-w-0 flex-1">
         {!characterId ? (
           <div className="p-6">
-            <EmptyState>{characters?.length === 0 ? t('dialogue.noCharacters') : t('dialogue.selectCharacter')}</EmptyState>
+            <EmptyState>{characters?.length === 0 ? (project ? t('characters.emptyProject') : t('dialogue.noCharacters')) : t('dialogue.selectCharacter')}</EmptyState>
           </div>
         ) : conversationId ? (
           <ChatWorkspace key={conversationId} conversationId={conversationId} onDeleted={() => navigate(`/dialogue/${characterId}`)} />

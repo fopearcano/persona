@@ -124,3 +124,35 @@ Prodotto da `GET /api/scenarios/:id/export?sessions=0|1` e accettato da `POST /a
 - `characters=reuse` (predefinito): i personaggi il cui id esiste già nel database vengono riutilizzati così come sono (la loro identità non viene modificata); gli altri vengono importati come nuove identità. `characters=new`: tutti i personaggi vengono importati come nuove identità.
 - Partecipanti, relazioni, eventi, sessioni (con messaggi e riassunti) e memorie contestuali vengono ricollegati ai personaggi importati o riutilizzati. Le memorie contestuali restano isolate nel nuovo scenario.
 - I messaggi delle sessioni importate sono considerati già elaborati per la memoria (le memorie contestuali arrivano con il file).
+
+---
+
+# Formato dei progetti salvati (`persona.project`, versione 1)
+
+Un progetto è una storia: il file contiene il cast, gli scenari e, a scelta, conversazioni e sessioni. Prodotto da `GET /api/projects/:id/export?conversations=0|1&sessions=0|1` (interfaccia: **Progetti → Salva su file**) e accettato da `POST /api/projects/import?characters=reuse|new&conversations=0|1&sessions=0|1` (**Progetti → Apri da file**). Tipi di riferimento: `ProjectExportV1` in [`shared/src/export-format.ts`](../shared/src/export-format.ts).
+
+```jsonc
+{
+  "format": "persona.project",
+  "version": 1,
+  "exportedAt": "…",
+  "app": { "name": "PERSONA", "version": "0.3.0" },
+  "project": { "id": "…", "name": "Cronache di Marte", "description": "…" | null, "status": "active" | "archived",
+               "createdAt": "…", "updatedAt": "…" },
+  // Un persona.character v1 per ogni membro del progetto (e per ogni partecipante agli scenari),
+  // con base di conoscenza, memorie personali e, se richieste, le conversazioni del Laboratorio.
+  // Le memorie contestuali non stanno qui ma negli scenari.
+  "characters": [ /* persona.character v1 */ ],
+  // Un persona.scenario v1 per ogni scenario del progetto, con "characters": [] (il cast è sopra).
+  "scenarios": [ /* persona.scenario v1 */ ]
+}
+```
+
+## Regole di apertura
+
+- Viene sempre creato un **nuovo** progetto; il progetto originale, se presente, non viene toccato. Se esiste già un progetto con lo stesso nome, il nuovo riceve un suffisso numerato («Cronache di Marte (2)»).
+- `characters=reuse` (predefinito): i personaggi il cui id esiste già vengono riutilizzati così come sono (identità e memorie invariate) e aggiunti al nuovo progetto; gli altri vengono importati come nuove identità. `characters=new`: tutti i personaggi vengono importati come nuove identità.
+- Ogni scenario viene importato secondo le regole di `persona.scenario`, all'interno del nuovo progetto e ricollegato ai personaggi riusati o importati.
+- `conversations=0` ignora le conversazioni del Laboratorio presenti nel file; `sessions=0` ignora sessioni e simulazioni degli scenari.
+- L'apertura è **atomica**: se una parte del file non è valida non viene creato nulla (né progetto né personaggi) e la risposta è `400 invalid_import`.
+- Le conversazioni del Laboratorio appartengono al personaggio, non al progetto: aprire lo stesso file due volte con `characters=new` crea due copie indipendenti di ogni personaggio.

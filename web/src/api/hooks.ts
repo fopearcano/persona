@@ -10,6 +10,7 @@ import type {
   Memory,
   ModelConfig,
   Preferences,
+  ProjectSummary,
   ScenarioDetail,
   ScenarioSummary,
 } from '@persona/shared/client';
@@ -17,7 +18,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 
 export const qk = {
-  characters: (status?: string) => ['characters', status ?? 'all'] as const,
+  projects: ['projects'] as const,
+  characters: (status?: string, projectId?: string | null) => ['characters', status ?? 'all', projectId ?? 'all'] as const,
   character: (id: string) => ['character', id] as const,
   revisions: (id: string) => ['character', id, 'revisions'] as const,
   variants: (id: string) => ['character', id, 'variants'] as const,
@@ -25,7 +27,7 @@ export const qk = {
   conversations: (params: Record<string, string | undefined>) => ['conversations', params] as const,
   conversation: (id: string, superseded = false) => ['conversation', id, superseded] as const,
   memories: (params: Record<string, string | undefined>) => ['memories', params] as const,
-  scenarios: ['scenarios'] as const,
+  scenarios: (projectId?: string | null) => ['scenarios', projectId ?? 'all'] as const,
   scenario: (id: string) => ['scenario', id] as const,
   modelConfigs: ['model-configs'] as const,
   preferences: ['preferences'] as const,
@@ -40,8 +42,14 @@ const qs = (params: Record<string, string | undefined>) => {
   return s ? `?${s}` : '';
 };
 
-export const useCharacters = (status?: string) =>
-  useQuery({ queryKey: qk.characters(status), queryFn: () => api.get<CharacterSummary[]>(`/api/characters${qs({ status })}`) });
+/** `projectId`: progetto attivo (null/undefined = tutti i progetti). */
+export const useCharacters = (status?: string, projectId?: string | null) =>
+  useQuery({
+    queryKey: qk.characters(status, projectId),
+    queryFn: () => api.get<CharacterSummary[]>(`/api/characters${qs({ status, projectId: projectId ?? undefined })}`),
+  });
+
+export const useProjects = () => useQuery({ queryKey: qk.projects, queryFn: () => api.get<ProjectSummary[]>('/api/projects') });
 
 export const useCharacter = (id: string | undefined) =>
   useQuery({ queryKey: qk.character(id ?? ''), queryFn: () => api.get<Character>(`/api/characters/${id}`), enabled: !!id });
@@ -59,7 +67,10 @@ export const useVariants = (id: string | undefined) =>
 export const useKnowledge = (id: string | undefined) =>
   useQuery({ queryKey: qk.knowledge(id ?? ''), queryFn: () => api.get<KnowledgeSource[]>(`/api/characters/${id}/knowledge`), enabled: !!id });
 
-export const useConversations = (params: { characterId?: string; scenarioId?: string; kind?: string; archived?: string }, enabled = true) =>
+export const useConversations = (
+  params: { characterId?: string; scenarioId?: string; kind?: string; archived?: string; projectId?: string },
+  enabled = true,
+) =>
   useQuery({ queryKey: qk.conversations(params), queryFn: () => api.get<Conversation[]>(`/api/conversations${qs(params)}`), enabled });
 
 export const useConversation = (id: string | undefined, superseded = false) =>
@@ -72,7 +83,11 @@ export const useConversation = (id: string | undefined, superseded = false) =>
 export const useMemories = (params: { characterId?: string; category?: string; scenarioId?: string; status?: string; q?: string }, enabled = true) =>
   useQuery({ queryKey: qk.memories(params), queryFn: () => api.get<Memory[]>(`/api/memories${qs(params)}`), enabled });
 
-export const useScenarios = () => useQuery({ queryKey: qk.scenarios, queryFn: () => api.get<ScenarioSummary[]>('/api/scenarios') });
+export const useScenarios = (projectId?: string | null) =>
+  useQuery({
+    queryKey: qk.scenarios(projectId),
+    queryFn: () => api.get<ScenarioSummary[]>(`/api/scenarios${qs({ projectId: projectId ?? undefined })}`),
+  });
 
 export const useScenario = (id: string | undefined) =>
   useQuery({ queryKey: qk.scenario(id ?? ''), queryFn: () => api.get<ScenarioDetail>(`/api/scenarios/${id}`), enabled: !!id });

@@ -116,12 +116,12 @@ mkdirSync(SHOTS, { recursive: true });
     await page.getByRole('button', { name: 'Salva' }).click();
     await page.getByText('Salvato').first().waitFor();
     await page.getByRole('tab', { name: /Partecipanti/ }).click();
-    await page.locator('select').first().selectOption({ label: 'Irina Volkova' });
+    await page.locator('main select').first().selectOption({ label: 'Irina Volkova' });
     await page.getByLabel('Ruolo').first().fill('Specialista di navigazione astronomica');
     await page.getByRole('button', { name: 'Aggiungi', exact: true }).click();
     await page.getByRole('link', { name: 'Irina Volkova' }).waitFor();
     await page.getByRole('tab', { name: 'Sessioni' }).click();
-    await page.locator('select').first().selectOption({ index: 1 });
+    await page.locator('main select').first().selectOption({ index: 1 });
     await page.getByRole('button', { name: 'Crea' }).click();
     await page.waitForURL(/sessions\//);
     const box = page.getByRole('textbox', { name: /Scrivi a Irina/ });
@@ -195,6 +195,67 @@ mkdirSync(SHOTS, { recursive: true });
     await (await chooser).setFiles(path);
     await page.getByText(/Importato «Nave Aurora»: 0 personaggi nuovi, 2 riutilizzati/).waitFor({ timeout: 5000 });
     await page.waitForURL(/\/scenarios\/[0-9a-f-]{36}/);
+  });
+  await step('projects: a new story with its own cast', async () => {
+    await page.goto(BASE + '/projects');
+    await page.locator('main').getByText('Il mio progetto').waitFor({ timeout: 5000 });
+    await page.getByLabel('Nome', { exact: true }).fill('Cronache di Marte');
+    await page.getByRole('button', { name: 'Nuovo progetto' }).click();
+    await page.waitForURL(/\/characters$/);
+    await page.getByText('Nessun personaggio in questo progetto').waitFor({ timeout: 5000 });
+    await page.waitForFunction(() => document.querySelector('select[aria-label="Progetto attivo"]')?.selectedOptions[0]?.textContent === 'Cronache di Marte');
+    await page.getByRole('button', { name: 'Aggiungi personaggio esistente' }).first().click();
+    await page.getByRole('dialog').locator('li', { hasText: 'Irina Volkova' }).getByRole('button', { name: 'Aggiungi' }).click();
+    await page.getByText('Personaggio aggiunto al progetto').waitFor({ timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.locator('main').getByText('Irina Volkova').waitFor();
+    if (await page.locator('main').getByText('Marco Bellini').count()) throw new Error('Marco must not be in the new project');
+  });
+  await step('projects: scenarios are divided per story', async () => {
+    await page.goto(BASE + '/scenarios');
+    await page.getByText('Nessuno scenario in questo progetto.').waitFor({ timeout: 5000 });
+    await page.getByLabel('Titolo').fill('Base Olympus');
+    await page.getByRole('button', { name: 'Nuovo scenario' }).click();
+    await page.waitForURL(/\/scenarios\/[0-9a-f-]{36}/);
+    await page.getByRole('tab', { name: /Partecipanti/ }).click();
+    // Prima i membri del progetto, poi i personaggi di altre storie (entrano nel progetto se aggiunti).
+    await page.locator('main select').first().locator('optgroup[label="Da altri progetti"] option', { hasText: 'Marco Bellini' }).waitFor({ state: 'attached', timeout: 5000 });
+    await page.locator('main select').first().selectOption({ label: 'Irina Volkova' });
+    await page.getByRole('button', { name: 'Aggiungi', exact: true }).click();
+    await page.getByRole('link', { name: 'Irina Volkova' }).waitFor();
+    await page.goto(BASE + '/scenarios');
+    await page.locator('main').getByText('Base Olympus').waitFor();
+    if (await page.locator('main').getByText('Nave Aurora').count()) throw new Error('Nave Aurora belongs to another project');
+  });
+  await step('projects: all-projects view and membership', async () => {
+    await page.goto(BASE + '/characters');
+    await page.getByLabel('Progetto attivo').selectOption({ label: 'Tutti i progetti' });
+    await page.locator('main').getByText('Marco Bellini').waitFor({ timeout: 5000 });
+    await page.locator('main li', { hasText: 'Irina Volkova' }).getByText(/Cronache di Marte/).waitFor();
+    await page.screenshot({ path: `${SHOTS}/characters-all-projects.png` });
+    await page.locator('main li', { hasText: 'Irina Volkova' }).getByRole('link').first().click();
+    await page.getByRole('group', { name: 'Progetti' }).getByText('Cronache di Marte').waitFor({ timeout: 5000 });
+    await page.getByRole('group', { name: 'Progetti' }).getByText('Il mio progetto').waitFor();
+  });
+  await step('projects: save to file and open', async () => {
+    await page.goto(BASE + '/projects');
+    const card = page.locator('main li', { hasText: 'Cronache di Marte' });
+    await card.getByRole('button', { name: 'Salva su file' }).click();
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('dialog').getByRole('button', { name: 'Salva su file' }).click(),
+    ]);
+    const file = await download.path();
+    const data = JSON.parse(readFileSync(file, 'utf8'));
+    if (data.format !== 'persona.project' || data.characters.length !== 1 || data.scenarios.length !== 1) throw new Error('bad project file');
+    await page.getByRole('button', { name: 'Apri da file' }).first().click();
+    await page.getByRole('dialog').getByLabel('Importa i personaggi come nuove identità').check();
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('dialog').getByRole('button', { name: 'Apri da file' }).click();
+    await (await chooser).setFiles(file);
+    await page.getByText(/Aperto «Cronache di Marte \(2\)»: 1 personaggi nuovi, 0 riutilizzati, 1 scenari/).waitFor({ timeout: 5000 });
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${SHOTS}/projects.png`, fullPage: true });
   });
   await step('english ui', async () => {
     await page.goto(BASE + '/settings');

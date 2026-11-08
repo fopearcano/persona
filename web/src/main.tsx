@@ -23,6 +23,10 @@ function PreferencesSync() {
     applied.current = true;
     if (data.uiLanguage && data.uiLanguage !== i18n.language) void setUiLanguage(data.uiLanguage);
     if (data.theme !== useUi.getState().theme) useUi.getState().setTheme(data.theme);
+    // Il progetto attivo salvato sul backend prevale su quello locale.
+    if (data.activeProjectId !== useUi.getState().activeProjectId) {
+      useUi.getState().setActiveProject(data.activeProjectId, { persist: false });
+    }
   }, [data]);
   return null;
 }

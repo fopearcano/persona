@@ -4,6 +4,7 @@ import { Layout } from './components/Layout';
 import { Spinner } from './components/ui';
 
 // Caricamento differito delle pagine: il primo avvio scarica solo ciò che serve.
+const ProjectsPage = lazy(() => import('./pages/ProjectsPage').then((m) => ({ default: m.ProjectsPage })));
 const CharactersPage = lazy(() => import('./pages/CharactersPage').then((m) => ({ default: m.CharactersPage })));
 const CharacterEditorPage = lazy(() => import('./pages/CharacterEditorPage').then((m) => ({ default: m.CharacterEditorPage })));
 const DialoguePage = lazy(() => import('./pages/DialoguePage').then((m) => ({ default: m.DialoguePage })));
@@ -21,6 +22,7 @@ export function App() {
       <Suspense fallback={<Spinner />}>
         <Routes>
           <Route path="/" element={<Navigate to="/characters" replace />} />
+          <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/characters" element={<CharactersPage />} />
           <Route path="/characters/new" element={<CharacterEditorPage key="new" />} />
           <Route path="/characters/:id" element={<CharacterEditorPage />} />

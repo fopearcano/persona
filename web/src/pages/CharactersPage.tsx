@@ -1,5 +1,5 @@
 import type { CharacterExportV1, CharacterSummary } from '@persona/shared/client';
-import { Archive, ArchiveRestore, Copy, Download, GitBranch, MessagesSquare, Plus, Trash2, Upload } from 'lucide-react';
+import { Archive, ArchiveRestore, Copy, Download, FolderMinus, FolderPlus, GitBranch, MessagesSquare, Plus, Trash2, Upload } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
@@ -7,6 +7,7 @@ import { api, downloadUrl } from '../api/client';
 import { useCharacters, useInvalidate } from '../api/hooks';
 import { Badge, Button, Checkbox, EmptyState, ErrorBox, IconButton, Input, Modal, PageHeader, Segmented, Spinner, useErrorText } from '../components/ui';
 import { formatRelative, initials, languageLabel } from '../lib/format';
+import { useActiveProject, useRemoveFromProject } from '../lib/project';
 import { useUi } from '../stores/ui';
 
 type Filter = 'active' | 'archived' | 'all';
@@ -26,7 +27,11 @@ export function CharactersPage() {
   const { t } = useTranslation();
   const [filter, setFilter] = useState<Filter>('active');
   const [q, setQ] = useState('');
-  const { data, isLoading, error, refetch } = useCharacters(filter === 'all' ? undefined : filter);
+  const { projectId, project, projects } = useActiveProject();
+  const { data, isLoading, error, refetch } = useCharacters(filter === 'all' ? undefined : filter, projectId);
+  const projectNames = useMemo(() => new Map(projects.map((p) => [p.id, p.name])), [projects]);
+  const [adding, setAdding] = useState(false);
+  const removeFromProject = useRemoveFromProject();
   const invalidate = useInvalidate();
   const toast = useUi((s) => s.toast);
   const errorText = useErrorText();
@@ -47,7 +52,7 @@ export function CharactersPage() {
     try {
       await fn();
       if (success) toast(success, 'success');
-      await invalidate('characters', 'character');
+      await invalidate('characters', 'character', 'projects');
     } catch (err) {
       toast(errorText(err), 'error');
     }
@@ -60,12 +65,12 @@ export function CharactersPage() {
         character: { id: string; name: string };
         imported: { memories: number; conversations: number; knowledge: number };
         skipped: { contextualMemories: number; scenarioConversations: number };
-      }>('/api/characters/import', json);
+      }>(`/api/characters/import${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`, json);
       toast(t('characters.importDone', { name: res.character.name, ...res.imported }), 'success');
       if (res.skipped.contextualMemories || res.skipped.scenarioConversations) {
         toast(t('characters.importSkipped', { memories: res.skipped.contextualMemories, sessions: res.skipped.scenarioConversations }));
       }
-      await invalidate('characters');
+      await invalidate('characters', 'projects');
     } catch (err) {
       toast(err instanceof SyntaxError ? t('errors.invalid_import') : errorText(err), 'error');
     }
@@ -92,6 +97,11 @@ export function CharactersPage() {
             <Button icon={<Upload className="size-4" />} onClick={() => fileRef.current?.click()}>
               {t('characters.import')}
             </Button>
+            {project && (
+              <Button icon={<FolderPlus className="size-4" />} onClick={() => setAdding(true)}>
+                {t('projects.addExisting')}
+              </Button>
+            )}
             <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => navigate('/characters/new')}>
               {t('characters.new')}
             </Button>
@@ -118,13 +128,20 @@ export function CharactersPage() {
           <EmptyState
             action={
               data.length === 0 && (
-                <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => navigate('/characters/new')}>
-                  {t('characters.new')}
-                </Button>
+                <div className="flex gap-2">
+                  {project && (
+                    <Button icon={<FolderPlus className="size-4" />} onClick={() => setAdding(true)}>
+                      {t('projects.addExisting')}
+                    </Button>
+                  )}
+                  <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => navigate('/characters/new')}>
+                    {t('characters.new')}
+                  </Button>
+                </div>
               )
             }
           >
-            {data.length === 0 ? t('characters.empty') : t('characters.emptyFiltered')}
+            {data.length > 0 ? t('characters.emptyFiltered') : project ? t('characters.emptyProject') : t('characters.empty')}
           </EmptyState>
         )}
         <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
@@ -142,6 +159,11 @@ export function CharactersPage() {
                     )}
                     {c.status === 'archived' && <Badge>{t('enums.characterStatus.archived')}</Badge>}
                   </div>
+                  {!project && c.projectIds.length > 0 && (
+                    <div className="truncate text-xs text-muted" title={t('projects.membership')}>
+                      {c.projectIds.map((id) => projectNames.get(id)).filter(Boolean).join(' · ')}
+                    </div>
+                  )}
                   <div className="truncate text-sm text-muted">{[c.occupation, c.origin].filter(Boolean).join(' · ')}</div>
                   <div className="mt-2 flex flex-wrap gap-1">
                     {c.languages.map((l) => (
@@ -173,6 +195,13 @@ export function CharactersPage() {
                     onClick={() => navigate(`/characters/${c.id}?tab=history`)}
                   />
                   <IconButton label={t('common.export')} icon={<Download className="size-4" />} onClick={() => setExporting(c)} />
+                  {project && (
+                    <IconButton
+                      label={t('projects.removeFromProject')}
+                      icon={<FolderMinus className="size-4" />}
+                      onClick={() => void removeFromProject(project.id, c)}
+                    />
+                  )}
                   {c.status === 'active' ? (
                     <IconButton
                       label={t('common.archive')}
@@ -202,6 +231,7 @@ export function CharactersPage() {
           ))}
         </ul>
       </div>
+      {project && <AddExistingModal open={adding} onClose={() => setAdding(false)} projectId={project.id} projectNames={projectNames} />}
       <Modal open={!!exporting} onClose={() => setExporting(null)} title={`${t('characters.exportTitle')} — ${exporting?.name ?? ''}`}>
         <div className="flex flex-col gap-3">
           <Checkbox label={t('characters.exportConversations')} checked={exportOpts.conversations} onChange={(v) => setExportOpts({ ...exportOpts, conversations: v })} />
@@ -230,5 +260,69 @@ export function CharactersPage() {
         </div>
       </Modal>
     </div>
+  );
+}
+
+/** Aggiunge al progetto attivo un personaggio già esistente (stessa identità, nessuna copia). */
+function AddExistingModal({
+  open,
+  onClose,
+  projectId,
+  projectNames,
+}: {
+  open: boolean;
+  onClose(): void;
+  projectId: string;
+  projectNames: Map<string, string>;
+}) {
+  const { t } = useTranslation();
+  const { data } = useCharacters('active');
+  const invalidate = useInvalidate();
+  const toast = useUi((s) => s.toast);
+  const errorText = useErrorText();
+  const [busy, setBusy] = useState<string | null>(null);
+  const candidates = (data ?? []).filter((c) => !c.projectIds.includes(projectId));
+
+  const add = async (c: CharacterSummary) => {
+    setBusy(c.id);
+    try {
+      await api.post(`/api/projects/${projectId}/characters`, { characterId: c.id });
+      toast(t('projects.added'), 'success');
+      await invalidate('characters', 'character', 'projects');
+    } catch (err) {
+      toast(errorText(err), 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title={t('projects.addExisting')}>
+      <p className="mb-3 text-sm text-muted">{t('projects.addExistingHelp')}</p>
+      {!data ? (
+        <Spinner />
+      ) : candidates.length === 0 ? (
+        <p className="text-sm text-muted">{t('projects.noOtherCharacters')}</p>
+      ) : (
+        <ul className="flex max-h-96 flex-col divide-y divide-border overflow-auto rounded-md border border-border">
+          {candidates.map((c) => (
+            <li key={c.id} className="flex items-center gap-3 px-3 py-2">
+              <Portrait name={c.name} src={c.portrait} size="sm" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">{c.name}</div>
+                <div className="truncate text-xs text-muted">
+                  {c.projectIds.length > 0
+                    ? c.projectIds.map((id) => projectNames.get(id)).filter(Boolean).join(' · ')
+                    : t('projects.none')}
+                </div>
+              </div>
+              <Button size="sm" icon={<Plus className="size-4" />} disabled={busy === c.id} onClick={() => void add(c)}>
+                {t('common.add')}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Modal>
   );
 }

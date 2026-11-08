@@ -202,11 +202,14 @@ describe('saving projects to file', () => {
     const { a, irina } = await buildStory();
     const bundle = (await json<ProjectExportV1>('GET', `/api/projects/${a.id}/export?conversations=0`)).body;
     expect(bundle.characters[0].conversations).toHaveLength(0);
-    const reused = (await json<{ characters: { reused: number; imported: number }; project: { id: string } }>('POST', '/api/projects/import', bundle)).body;
+    const reused = (await json<{ characters: { reused: number; imported: number }; project: { id: string; name: string } }>('POST', '/api/projects/import', bundle)).body;
     expect(reused.characters).toEqual({ reused: 2, imported: 0 });
+    // Il progetto riaperto accanto all'originale non ne duplica il nome.
+    expect(reused.project.name).toBe(`${bundle.project.name} (2)`);
     expect((await json<Character>('GET', `/api/characters/${irina.id}`)).body.projectIds).toHaveLength(2);
-    const copied = (await json<{ characters: { reused: number; imported: number } }>('POST', '/api/projects/import?characters=new', bundle)).body;
+    const copied = (await json<{ characters: { reused: number; imported: number }; project: { name: string } }>('POST', '/api/projects/import?characters=new', bundle)).body;
     expect(copied.characters).toEqual({ reused: 0, imported: 2 });
+    expect(copied.project.name).toBe(`${bundle.project.name} (3)`);
     expect(await listChars()).toHaveLength(4);
   });
 

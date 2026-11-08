@@ -1,10 +1,12 @@
-import { BookUser, Brain, Drama, MessagesSquare, Orbit, Settings, UserPlus, Users } from 'lucide-react';
+import { BookUser, Brain, Drama, FolderKanban, MessagesSquare, Orbit, Settings, UserPlus, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { NavLink, useLocation } from 'react-router';
-import { cx, Toasts } from './ui';
+import { Link, NavLink, useLocation } from 'react-router';
+import { useActiveProject } from '../lib/project';
+import { cx, Select, Toasts } from './ui';
 
 const NAV = [
+  { to: '/projects', key: 'projects', icon: FolderKanban, end: false },
   { to: '/characters', key: 'characters', icon: Users, end: false },
   { to: '/characters/new', key: 'creator', icon: UserPlus, end: true },
   { to: '/dialogue', key: 'dialogue', icon: MessagesSquare },
@@ -30,6 +32,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <div className="text-[11px] text-muted">{t('app.tagline')}</div>
           </div>
         </div>
+        <ProjectSwitcher />
         <ul className="flex flex-1 flex-col gap-0.5 p-2">
           {NAV.map(({ to, key, icon: Icon, ...rest }) => (
             <li key={to}>
@@ -57,6 +60,41 @@ export function Layout({ children }: { children: ReactNode }) {
         {children}
       </main>
       <Toasts />
+    </div>
+  );
+}
+
+/** Selettore del progetto attivo: filtra personaggi, scenari, simulazioni e memoria. */
+function ProjectSwitcher() {
+  const { t } = useTranslation();
+  const { projectId, projects, setActive } = useActiveProject();
+  const visible = projects.filter((p) => p.status === 'active' || p.id === projectId);
+  return (
+    <div className="border-b border-border p-2">
+      <div className="hidden md:block">
+        <div className="mb-1 flex items-center justify-between px-0.5 text-[11px] text-muted">
+          <span>{t('projects.switcher')}</span>
+          <Link to="/projects" className="hover:text-text hover:underline">
+            {t('projects.manage')}
+          </Link>
+        </div>
+        <Select
+          aria-label={t('projects.switcher')}
+          className="h-7! py-0! text-xs"
+          value={projectId ?? ''}
+          onChange={(e) => setActive(e.target.value || null)}
+        >
+          <option value="">{t('projects.all')}</option>
+          {visible.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <Link to="/projects" title={t('projects.switcher')} className="flex justify-center text-muted hover:text-text md:hidden">
+        <FolderKanban className="size-4" aria-hidden />
+      </Link>
     </div>
   );
 }

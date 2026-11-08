@@ -11,18 +11,20 @@ shared/   tipi, costanti, schemi zod, formati di export, stima token
           (il web importa `@persona/shared/client`, che esclude gli schemi zod; il server `@persona/shared`)
 server/   Node 22 + Fastify 5 + SQLite (better-sqlite3) + Drizzle ORM
   src/db/          schema.ts (Drizzle), client.ts (apertura, migrazioni, swap per restore)
-  drizzle/         migrazioni SQL (0001_fts.sql = FTS5 + trigger, scritta a mano)
+  drizzle/         migrazioni SQL (0001_fts.sql = FTS5 + trigger, scritta a mano; 0003_projects.sql ritoccata per ON DELETE CASCADE)
   src/llm/         adattatore provider-indipendente: openai-compatible.ts (LM Studio/OpenAI/…: chat in
                    streaming + /embeddings), mock.ts (test/demo, embedding deterministici), think-filter.ts, registry.ts
   src/services/    logica di dominio; src/routes/index.ts = API REST + SSE
                    embeddings.ts (recupero semantico + indicizzazione), turns.ts (gestione turni),
-                   pdf.ts, scenario-portability.ts (bundle persona.scenario), portability.ts (personaggi, backup)
+                   pdf.ts, scenario-portability.ts (bundle persona.scenario), portability.ts (personaggi, backup),
+                   projects.ts + project-membership.ts (progetti/storie, bundle persona.project)
   src/embedded.ts  startPersonaServer(): avvio in-process su porta libera (usato da index.ts; base per Electron)
   test/            vitest + app.inject, sempre con provider mock (nessun LM Studio richiesto)
 desktop/  app Electron (pacchetto separato, fuori dai workspaces): src/main.ts, build.mjs (esbuild), smoke.mjs,
           configurazione electron-builder in desktop/electron-builder.config.cjs, icona in desktop/build/icon.png
 web/      React 19 + Vite 7 + Tailwind 4 + TanStack Query + Zustand + i18next
-  src/pages/       Characters, CharacterEditor, Dialogue, Scenarios(+Editor), Simulations, Memory, Settings
+  src/pages/       Projects, Characters, CharacterEditor, Dialogue, Scenarios(+Editor), Simulations, Memory, Settings
+  src/lib/project.ts  useActiveProject (progetto attivo = filtro), useRemoveFromProject
   src/components/chat/  ChatWorkspace (streaming SSE), MessageItem, Inspector
   src/i18n/locales/     it.json (riferimento), en, fr, es, de, pt (stesse chiavi; test di parità; fr/es/de/pt caricati su richiesta)
 docs/     architecture.md, export-format.md
@@ -37,6 +39,7 @@ identità → recupero memorie (retrieval.ts) → assemblaggio contesto (context
 - L'elaborazione automatica **non crea mai memorie core attive**: le proposte core nascono `status='proposed'` e richiedono `POST /api/memories/:id/approve`.
 - Tutto ciò che viene estratto da conversazioni di scenario/simulazione diventa `category='contextual'` con `scenarioId` (mai core/semantic). La promozione all'identità personale è solo esplicita (`POST /api/memories/:id/promote`, crea una NUOVA memoria, l'originale resta).
 - Perimetri di recupero (retrieval.ts `scopeClause`): Laboratorio = core + episodic + semantic (mai contextual). Scenario = core + semantic personali + contextual dello **stesso** scenario. Gli estratti di conversazioni precedenti seguono lo stesso perimetro.
+- **Progetti** (storie): personaggi ↔ progetti molti-a-molti (`project_characters`), scenari → un progetto (`scenarios.project_id`, cascade); sessioni, simulazioni e memorie contestuali seguono lo scenario. L'appartenenza a un progetto NON è identità (nessuna revisione). Aggiungere un partecipante o spostare uno scenario porta i personaggi nel progetto; rimuovere un membro che partecipa a scenari del progetto → 409. Eliminare un progetto non elimina mai identità condivise (`deleteCharacters=1` solo per quelle esclusive). Il progetto attivo (`preferences.activeProjectId`) è solo un filtro dell'interfaccia (`?projectId=`, `none` = senza progetto).
 - Simulazioni multi-personaggio: il contesto si assembla **per ogni turno** per il solo personaggio che parla; le sue battute sono `assistant`, quelle altrui `user` con prefisso `[Nome]:`. L'estrazione di memorie avviene per ciascun partecipante.
 - I riassunti (`conversation_summaries`) sono cumulativi e **non sostituiscono né cancellano** i messaggi. Rigenerare marca la vecchia risposta `superseded`; modificare un messaggio salva la versione precedente in `message_revisions`. Generazioni interrotte restano salvate come `incomplete`.
 - L'analisi esterna (`mode='analysis'`, `role='analysis'`) non è parlato del personaggio ed è esclusa dalla cronologia in-personaggio.
@@ -84,9 +87,9 @@ Variabili: `PERSONA_DATA_DIR` (default `./data`), `PERSONA_PORT` (4317), `PERSON
 - Ogni nuova funzionalità backend ha un test in `server/test/` usando `createTestEnv()` (provider mock predefinito). Non dichiarare funzionalità complete senza test eseguiti.
 - UI sobria: token colore in `web/src/index.css` (`bg-panel`, `text-muted`, `border-border`, `text-accent`, …), niente animazioni superflue.
 
-## Stato attuale (v0.3.0)
+## Stato attuale (v0.3.0 + progetti)
 
-Implementato e testato: fasi 1–6 — fondazioni, personaggi, memoria, scenari, simulazioni (turni manuali, rotazione, regia automatica), recupero semantico ibrido con embedding locali, PDF nella base di conoscenza, export/import di personaggi e scenari, backup/restore, app desktop Electron (Linux, headless), interfaccia in 6 lingue, indicatore di disponibilità del motore. 66 test server + 20 test web; smoke E2E Playwright (17 passaggi) e smoke desktop con provider mock.
+Implementato e testato: fasi 1–6 — fondazioni, personaggi, memoria, scenari, simulazioni (turni manuali, rotazione, regia automatica), recupero semantico ibrido con embedding locali, PDF nella base di conoscenza, export/import di personaggi e scenari, backup/restore, app desktop Electron (Linux, headless), interfaccia in 6 lingue, indicatore di disponibilità del motore. Progetti (storie): divisione di personaggi/scenari/simulazioni per progetto, progetto attivo, salvataggio/apertura su file (`persona.project`), migrazione automatica dei dati esistenti in un progetto predefinito. 75 test server + 20 test web; smoke E2E Playwright (21 passaggi) e smoke desktop con provider mock.
 
 Installer desktop: le release pubblicano l'installer Windows, generato e verificato (smoke test dell'app impacchettata) dal workflow di release.
 

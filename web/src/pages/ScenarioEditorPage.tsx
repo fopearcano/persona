@@ -10,6 +10,7 @@ import { LanguageSelect } from '../components/LanguageSelect';
 import { MemoryRow } from '../components/MemoryRow';
 import { Badge, Button, Card, Checkbox, EmptyState, ErrorBox, Field, IconButton, Input, Modal, Select, Spinner, Tabs, TextField, useErrorText } from '../components/ui';
 import { formatRelative } from '../lib/format';
+import { useActiveProject } from '../lib/project';
 import { useUi } from '../stores/ui';
 
 type TabId = 'details' | 'participants' | 'events' | 'sessions' | 'memories';
@@ -29,6 +30,7 @@ function toDraft(s: ScenarioDetail): DetailsDraft {
     knowledge: s.knowledge,
     language: s.language,
     status: s.status,
+    projectId: s.projectId,
   };
 }
 
@@ -53,7 +55,7 @@ export function ScenarioEditorPage() {
       await fn();
       if (ok) toast(ok, 'success');
       await refetch();
-      void invalidate('scenarios');
+      void invalidate('scenarios', 'projects', 'characters');
     } catch (err) {
       toast(errorText(err), 'error');
     }
@@ -76,7 +78,7 @@ export function ScenarioEditorPage() {
             onClick={async () => {
               if (!window.confirm(t('scenarios.deleteConfirm'))) return;
               await api.del(`/api/scenarios/${scenario.id}`);
-              await invalidate('scenarios', 'memories', 'conversations');
+              await invalidate('scenarios', 'memories', 'conversations', 'projects');
               navigate('/scenarios');
             }}
           >
@@ -130,6 +132,7 @@ export function ScenarioEditorPage() {
 
 function DetailsTab({ scenario, onSaved }: { scenario: ScenarioDetail; onSaved(): void }) {
   const { t } = useTranslation();
+  const { projects } = useActiveProject();
   const [draft, setDraft] = useState<DetailsDraft>(() => toDraft(scenario));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -142,6 +145,24 @@ function DetailsTab({ scenario, onSaved }: { scenario: ScenarioDetail; onSaved()
         <Field label={t('scenarios.fields.language')}>
           <LanguageSelect value={draft.language} allowNone noneLabel={t('scenarios.languageNone')} onChange={(v) => setDraft({ ...draft, language: v })} />
         </Field>
+        <Field label={t('projects.projectField')} help={t('projects.moveHelp')}>
+          <Select value={draft.projectId ?? ''} onChange={(e) => setDraft({ ...draft, projectId: e.target.value || null })}>
+            <option value="">{t('projects.none')}</option>
+            {projects
+              .filter((p) => p.status === 'active' || p.id === draft.projectId)
+              .map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+          </Select>
+        </Field>
+        <Field label={t('scenarios.fields.status')}>
+          <Select value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value as Scenario['status'] })}>
+            <option value="active">{t('enums.scenarioStatus.active')}</option>
+            <option value="archived">{t('enums.scenarioStatus.archived')}</option>
+          </Select>
+        </Field>
         {FIELDS.map((f) => (
           <TextField
             key={f}
@@ -153,12 +174,6 @@ function DetailsTab({ scenario, onSaved }: { scenario: ScenarioDetail; onSaved()
             onChange={(v) => setDraft({ ...draft, [f]: v })}
           />
         ))}
-        <Field label={t('scenarios.fields.status')}>
-          <Select value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value as Scenario['status'] })}>
-            <option value="active">{t('enums.scenarioStatus.active')}</option>
-            <option value="archived">{t('enums.scenarioStatus.archived')}</option>
-          </Select>
-        </Field>
       </div>
       {error != null && <ErrorBox error={error} />}
       <div>
@@ -225,6 +240,9 @@ function ParticipantsTab({ scenario, run }: { scenario: ScenarioDetail; run(fn: 
   const { t } = useTranslation();
   const { data: characters } = useCharacters('active');
   const available = (characters ?? []).filter((c) => !scenario.participants.some((p) => p.characterId === c.id));
+  // Prima i personaggi del progetto dello scenario; gli altri entrano nel progetto se aggiunti.
+  const inProject = scenario.projectId ? available.filter((c) => c.projectIds.includes(scenario.projectId!)) : available;
+  const fromOther = scenario.projectId ? available.filter((c) => !c.projectIds.includes(scenario.projectId!)) : [];
   const [add, setAdd] = useState({ characterId: '', role: '' });
   const [rel, setRel] = useState({ fromCharacterId: '', toCharacterId: '', description: '' });
   const nameOf = (id: string) => scenario.participants.find((p) => p.characterId === id)?.characterName ?? id;
@@ -244,11 +262,20 @@ function ParticipantsTab({ scenario, run }: { scenario: ScenarioDetail; run(fn: 
           <Field label={t('nav.characters')} className="w-64">
             <Select value={add.characterId} onChange={(e) => setAdd({ ...add, characterId: e.target.value })}>
               <option value="">{t('common.select')}</option>
-              {available.map((c) => (
+              {inProject.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
+              {fromOther.length > 0 && (
+                <optgroup label={t('projects.otherProjects')}>
+                  {fromOther.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </Select>
           </Field>
           <Field label={t('scenarios.role')} className="min-w-64 flex-1">

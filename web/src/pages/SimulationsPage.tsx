@@ -9,13 +9,15 @@ import { useConversation, useConversations, useInvalidate, useScenario, useScena
 import { ChatWorkspace } from '../components/chat/ChatWorkspace';
 import { Badge, Button, Card, Checkbox, EmptyState, Field, Input, PageHeader, Select, Spinner, useErrorText } from '../components/ui';
 import { formatRelative } from '../lib/format';
+import { useActiveProject } from '../lib/project';
 import { useUi } from '../stores/ui';
 
 export function SimulationsPage() {
   const { t } = useTranslation();
   const [params] = useSearchParams();
-  const { data: scenarios } = useScenarios();
-  const { data: sims, isLoading } = useConversations({ kind: 'simulation', archived: '1' });
+  const { projectId } = useActiveProject();
+  const { data: scenarios } = useScenarios(projectId);
+  const { data: sims, isLoading } = useConversations({ kind: 'simulation', archived: '1', projectId: projectId ?? undefined });
   const [scenarioId, setScenarioId] = useState(params.get('scenarioId') ?? '');
   const { data: scenario } = useScenario(scenarioId || undefined);
   const [selected, setSelected] = useState<string[]>([]);
@@ -62,6 +64,8 @@ export function SimulationsPage() {
                           {s.title}
                         </option>
                       ))}
+                      {/* Scenario aperto da un link (?scenarioId=) ma fuori dal progetto attivo. */}
+                      {scenario && !usable.some((s) => s.id === scenario.id) && <option value={scenario.id}>{scenario.title}</option>}
                     </Select>
                   </Field>
                   <Field label={t('simulations.titleField')}>

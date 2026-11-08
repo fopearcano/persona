@@ -1,8 +1,18 @@
 import type { Theme } from '@persona/shared/client';
 import { create } from 'zustand';
+import { api } from '../api/client';
 import { setUiLanguage } from '../i18n';
 
 const THEME_KEY = 'persona.theme';
+const PROJECT_KEY = 'persona.activeProject';
+
+function readProject(): string | null {
+  try {
+    return localStorage.getItem(PROJECT_KEY) || null;
+  } catch {
+    return null;
+  }
+}
 
 function readTheme(): Theme {
   try {
@@ -34,6 +44,9 @@ interface UiState {
   dismiss(id: number): void;
   inspectorOpen: boolean;
   toggleInspector(): void;
+  /** Progetto attivo (null = tutti i progetti). Salvato anche sul backend. */
+  activeProjectId: string | null;
+  setActiveProject(id: string | null, opts?: { persist?: boolean }): void;
 }
 
 let toastId = 0;
@@ -65,6 +78,17 @@ export const useUi = create<UiState>((set, get) => ({
   inspectorOpen: true,
   toggleInspector() {
     set({ inspectorOpen: !get().inspectorOpen });
+  },
+  activeProjectId: readProject(),
+  setActiveProject(id, opts = {}) {
+    try {
+      if (id) localStorage.setItem(PROJECT_KEY, id);
+      else localStorage.removeItem(PROJECT_KEY);
+    } catch {
+      /* ignora */
+    }
+    set({ activeProjectId: id });
+    if (opts.persist !== false) void api.put('/api/preferences', { activeProjectId: id }).catch(() => undefined);
   },
 }));
 

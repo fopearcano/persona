@@ -9,6 +9,7 @@ import { useCharacters, useMemories, useScenarios } from '../api/hooks';
 import { categoryTone } from '../components/chat/Inspector';
 import { MemoryRow } from '../components/MemoryRow';
 import { Badge, Button, Card, Checkbox, EmptyState, ErrorBox, Field, Input, PageHeader, Select, Spinner, Tabs, Textarea, useErrorText } from '../components/ui';
+import { useActiveProject } from '../lib/project';
 import { useUi } from '../stores/ui';
 
 type CatTab = 'all' | MemoryCategory | 'proposed';
@@ -30,8 +31,11 @@ export function MemoryPage() {
   const [scenarioId, setScenarioId] = useState('');
   const [status, setStatus] = useState<MemoryStatus | ''>('');
   const [q, setQ] = useState('');
+  const { projectId } = useActiveProject();
   const { data: characters } = useCharacters();
   const { data: scenarios } = useScenarios();
+  // Il selettore mostra i personaggi del progetto attivo (più quello aperto da un link, se esterno).
+  const pickable = (characters ?? []).filter((c) => !projectId || c.projectIds.includes(projectId) || c.id === characterId);
   const filters = {
     characterId,
     category: tab === 'all' || tab === 'proposed' ? undefined : tab,
@@ -44,7 +48,7 @@ export function MemoryPage() {
   const scenarioTitles = useMemo(() => new Map((scenarios ?? []).map((s) => [s.id, s.title])), [scenarios]);
   const characterScenarios = (scenarios ?? []).filter((s) => {
     const name = characters?.find((c) => c.id === characterId)?.name;
-    return name && s.participantNames.includes(name);
+    return name && s.participantNames.includes(name) && (!projectId || s.projectId === projectId);
   });
 
   return (
@@ -60,7 +64,7 @@ export function MemoryPage() {
             onChange={(e) => setParams(e.target.value ? { characterId: e.target.value } : {})}
           >
             <option value="">{t('memory.selectCharacter')}</option>
-            {characters?.map((c) => (
+            {pickable.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>

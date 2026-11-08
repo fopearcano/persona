@@ -8,6 +8,7 @@ PERSONA separa rigorosamente tre componenti:
 |---|---|---|
 | **A. Identità persistente** | `characters`, `character_traits`, `character_languages`, `expertise`, memorie `core`, `identity_revisions` | Canonica. Modificabile solo dall'autore, con cronologia reversibile. |
 | **B. Ambienti di interazione** | `conversations` (`lab` / `scenario` / `simulation`), `messages`, `conversation_summaries`, `scenarios` e tabelle collegate, memorie `episodic`/`semantic`/`contextual` | Ogni ambiente ha cronologia, contesto e memorie propri. |
+| **Organizzazione: progetti** | `projects`, `project_characters`, `scenarios.project_id` | Raggruppa per storia; non fa parte dell'identità. |
 | **C. Motore di inferenza** | `model_configurations`, `server/src/llm/*` | Intercambiabile. Non conserva stato: il contesto è ricostruito a ogni richiesta. |
 
 ## Flusso di una risposta
@@ -53,6 +54,18 @@ Verifica di coerenza: controlli deterministici (duplicati, finzione nella memori
 - Un personaggio può partecipare a più scenari contemporaneamente; ogni scenario ha partecipanti con ruolo, conoscenze e obiettivi, relazioni ed eventi.
 - Lo schema non ha tabelle `ScenarioMemories`, `Simulations` e `CharacterVariants` separate: sono rappresentate rispettivamente da `memories.scenario_id`, `conversations.kind = 'simulation'` (+ `conversation_participants`) e `characters.parent_id`/`variant_note`. Eliminare uno scenario elimina le sue sessioni e memorie contestuali, mai i personaggi.
 - Le varianti sono copie indipendenti (con eventuale copia delle memorie personali); l'originale resta invariato.
+
+## Progetti (storie)
+
+Un progetto raggruppa il lavoro di una storia: cast, scenari, sessioni e simulazioni.
+
+- **Personaggi ↔ progetti: molti-a-molti** (`project_characters`, unico per coppia). Lo stesso personaggio può far parte di più storie senza essere duplicato: identità, memorie personali (core/episodic/semantic), base di conoscenza e conversazioni del laboratorio restano del personaggio e sono condivise. L'appartenenza non è una modifica d'identità: non crea revisioni né incrementa `identityVersion`.
+- **Scenari → un progetto** (`scenarios.project_id`, `ON DELETE CASCADE`; `NULL` = senza progetto). Sessioni e simulazioni seguono lo scenario, e con esso le memorie `contextual`: il perimetro di recupero resta quello dello scenario, quindi le storie restano isolate tra loro.
+- **Coerenza**: aggiungere un partecipante a uno scenario lo aggiunge al progetto dello scenario; spostare uno scenario in un altro progetto vi porta i partecipanti. Rimuovere da un progetto un personaggio che partecipa ancora a suoi scenari è rifiutato (409 `conflict`, con l'elenco degli scenari in `details.scenarios`). Duplicati e varianti ereditano i progetti dell'originale.
+- **Eliminazione**: eliminare un progetto elimina i suoi scenari (con sessioni, simulazioni e memorie contestuali), mai le identità condivise; con `?deleteCharacters=1` elimina anche i personaggi presenti **solo** in quel progetto.
+- **Progetto attivo**: `preferences.activeProjectId` (anche in `localStorage`); il frontend lo usa come filtro (`?projectId=` su personaggi, scenari e conversazioni; `none` = senza progetto). Un id non più esistente equivale a «tutti i progetti».
+- **Migrazione iniziale** (`ensureDefaultProject`, una sola volta, segnata in `user_preferences` con `projects.initialized`): crea un progetto predefinito nella lingua dell'interfaccia, vi assegna personaggi e scenari già esistenti e lo rende attivo. Se l'utente elimina tutti i progetti, non ne viene ricreato uno.
+- **Salvataggio su file**: `GET /api/projects/:id/export` produce un `persona.project` (cast completo + scenari in formato `persona.scenario` senza duplicare i personaggi); `POST /api/projects/import` lo riapre in una transazione unica (tutto o niente), riusando i personaggi con lo stesso id o importandoli come nuove identità. Vedi `docs/export-format.md`.
 
 ## Simulazioni multi-personaggio
 
@@ -102,5 +115,5 @@ Documenti di testo, Markdown e PDF (estrazione del testo con `unpdf`/pdf.js in `
 
 ## Estensioni previste
 
-1. Installer desktop (electron-builder) e firma del codice.
+1. Firma del codice degli installer e aggiornamento automatico.
 2. Indice vettoriale dedicato per basi di memoria molto grandi; OCR per PDF scansionati.

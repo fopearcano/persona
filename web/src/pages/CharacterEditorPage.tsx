@@ -25,6 +25,7 @@ import {
   useErrorText,
 } from '../components/ui';
 import { formatDateTime } from '../lib/format';
+import { useActiveProject, useRemoveFromProject } from '../lib/project';
 import { useUi } from '../stores/ui';
 import { Portrait } from './CharactersPage';
 import { useQueryClient } from '@tanstack/react-query';
@@ -111,6 +112,9 @@ export function CharacterEditorPage() {
   const toast = useUi((s) => s.toast);
   const invalidate = useInvalidate();
   const qc = useQueryClient();
+  const { projectId: activeProjectId } = useActiveProject();
+  // Progetto in cui nasce un nuovo personaggio (non fa parte dell'identità).
+  const [newProjectId, setNewProjectId] = useState<string>(activeProjectId ?? '');
 
   useEffect(() => {
     if (character) {
@@ -141,10 +145,10 @@ export function CharacterEditorPage() {
     try {
       const body = { ...draft, modelConfigId: character?.modelConfigId ?? null, revisionReason: reason || null };
       if (isNew) {
-        const created = await api.post<Character>('/api/characters', body);
+        const created = await api.post<Character>('/api/characters', { ...body, projectId: newProjectId || null });
         toast(t('editor.createdToast'), 'success');
         setOriginal(draft);
-        await invalidate('characters');
+        await invalidate('characters', 'projects');
         navigate(`/characters/${created.id}?tab=${tab}`, { replace: true });
       } else {
         const updated = await api.put<Character>(`/api/characters/${id}`, body);
@@ -210,6 +214,7 @@ export function CharacterEditorPage() {
         </div>
         {saveError != null && <div className="mt-2"><ErrorBox error={saveError} /></div>}
         <p className="mt-2 text-xs text-muted">{t('editor.identityNote')}</p>
+        {isNew ? <NewProjectSelect value={newProjectId} onChange={setNewProjectId} /> : character && <ProjectMembership character={character} />}
         <Tabs className="mt-2" tabs={tabs} value={tab} onChange={setTab} />
       </div>
 
@@ -838,6 +843,92 @@ function HistoryPanel({ character }: { character: Character }) {
           </div>
         </div>
       </Card>
+    </div>
+  );
+}
+
+/** Progetto in cui creare il nuovo personaggio (predefinito: il progetto attivo). */
+function NewProjectSelect({ value, onChange }: { value: string; onChange(v: string): void }) {
+  const { t } = useTranslation();
+  const { projects } = useActiveProject();
+  return (
+    <div className="mt-2 flex items-center gap-2 text-xs">
+      <label htmlFor="new-character-project" className="text-muted">
+        {t('projects.projectField')}
+      </label>
+      <Select id="new-character-project" className="h-7! w-56 py-0! text-xs" value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">{t('projects.none')}</option>
+        {projects
+          .filter((p) => p.status === 'active' || p.id === value)
+          .map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+      </Select>
+    </div>
+  );
+}
+
+/** Progetti (storie) a cui partecipa il personaggio: l'appartenenza non è una modifica d'identità. */
+function ProjectMembership({ character }: { character: Character }) {
+  const { t } = useTranslation();
+  const { projects } = useActiveProject();
+  const invalidate = useInvalidate();
+  const toast = useUi((s) => s.toast);
+  const errorText = useErrorText();
+  const remove = useRemoveFromProject();
+  const names = new Map(projects.map((p) => [p.id, p.name]));
+  const others = projects.filter((p) => p.status === 'active' && !character.projectIds.includes(p.id));
+
+  const add = async (projectId: string) => {
+    try {
+      await api.post(`/api/projects/${projectId}/characters`, { characterId: character.id });
+      toast(t('projects.added'), 'success');
+      await invalidate('characters', 'character', 'projects');
+    } catch (err) {
+      toast(errorText(err), 'error');
+    }
+  };
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs" aria-label={t('projects.membership')} role="group">
+      <span className="text-muted">{t('projects.membership')}:</span>
+      {character.projectIds.length === 0 && <span className="text-muted">{t('projects.none')}</span>}
+      {character.projectIds.map((pid) => {
+        const name = names.get(pid) ?? pid;
+        return (
+          <span key={pid} className="inline-flex items-center gap-1 rounded border border-border bg-panel-2 py-0.5 pl-1.5 pr-0.5">
+            {name}
+            <button
+              type="button"
+              className="rounded p-0.5 text-muted hover:text-danger"
+              aria-label={`${t('projects.removeFromProject')}: ${name}`}
+              title={t('projects.removeFromProject')}
+              onClick={() => void remove(pid, character)}
+            >
+              <X className="size-3" aria-hidden />
+            </button>
+          </span>
+        );
+      })}
+      {others.length > 0 && (
+        <Select
+          aria-label={t('projects.addToProject')}
+          className="h-6! w-48 py-0! text-xs"
+          value=""
+          onChange={(e) => {
+            if (e.target.value) void add(e.target.value);
+          }}
+        >
+          <option value="">{t('projects.addToProject')}</option>
+          {others.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </Select>
+      )}
     </div>
   );
 }

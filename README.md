@@ -7,6 +7,8 @@ PERSONA permette di creare, mantenere, interrogare e simulare personaggi che esi
 - **L'applicazione** conserva identità, continuità, memoria e portabilità.
 - **L'LLM** (LM Studio in locale, oppure OpenAI o altri provider compatibili) fornisce solo l'intelligenza conversazionale: è intercambiabile e non contiene il personaggio.
 
+I lavori sono organizzati in **progetti**: ogni progetto è una storia (un romanzo, una saga, una campagna) con il proprio cast di personaggi, i propri scenari e le proprie simulazioni. Lo stesso personaggio può partecipare a più storie senza essere duplicato.
+
 Nessun account, nessun abbonamento, nessuna telemetria. Tutti i dati restano in un file SQLite sul tuo computer.
 
 Interfaccia disponibile in **italiano** (predefinita), inglese, francese, spagnolo, tedesco e portoghese; i personaggi possono conversare in qualsiasi lingua supportata dal modello.
@@ -101,13 +103,14 @@ Il recupero diventa ibrido (lessicale FTS5 + similarità tra embedding, con peso
 
 ## Percorso tipico
 
+0. **Progetti**: crea una storia e rendila attiva dal selettore in cima al menu laterale. Personaggi, Dialogo, Scenari, Simulazioni e Memoria mostrano solo ciò che appartiene al progetto attivo (oppure *Tutti i progetti*). Un personaggio creato nasce nel progetto attivo; uno già esistente si aggiunge con *Aggiungi personaggio esistente*.
 1. **Personaggi → Nuovo personaggio**: identità, biografia, psicologia (Big Five facoltativi), comunicazione, competenze, lingue (madrelingua, livelli), base di conoscenza (testo, Markdown, PDF).
 2. **Dialogo**: scegli il personaggio, crea una conversazione e parla in modalità *Dialogo*, *Intervista* o *Analisi esterna* (l'analisi non è mai presentata come parlato del personaggio). Puoi cambiare lingua di risposta in qualsiasi momento.
 3. **Elabora memoria** (o automaticamente oltre la soglia): riassunti incrementali ed estrazione di memorie con provenienza. Le nuove conversazioni ereditano le memorie pertinenti, non l'intera cronologia.
 4. **Memoria**: ispeziona, modifica, fissa, archivia, approva e promuovi le memorie; verifica di coerenza; anteprima del recupero.
 5. **Scenari**: crea un universo (ambientazione, cronologia, condizioni, eventi, conoscenze), aggiungi partecipanti con ruoli e relazioni, apri sessioni narrative. Le memorie della storia restano nello scenario.
 6. **Simulazioni**: scene condivise tra più personaggi; l'autore sceglie chi parla, oppure usa la rotazione o la **regia automatica** (il modello sceglie il parlante più naturale, con ripiego sulla rotazione); narrazione, indicazioni di regia per il turno, avanzamento di più turni consecutivi.
-7. **Personaggi → Esporta/Importa** per portare un'identità altrove; **Scenari → Esporta/Importa** per un universo completo (partecipanti, relazioni, eventi, sessioni, memorie contestuali); **Impostazioni → Backup** per l'intero database.
+7. **Progetti → Salva su file / Apri da file** per l'intera storia (cast, memorie, base di conoscenza, scenari, conversazioni e sessioni a scelta); **Personaggi → Esporta/Importa** per portare un'identità altrove; **Scenari → Esporta/Importa** per un universo completo (partecipanti, relazioni, eventi, sessioni, memorie contestuali); **Impostazioni → Backup** per l'intero database.
 
 ## Test e verifiche
 
@@ -132,6 +135,7 @@ node scripts/e2e-smoke.cjs /tmp/persona-shots   # in un altro terminale
 
 - Database: `data/persona.db` (SQLite, UTF-8). Backup in `data/backups/`.
 - **Backup**: Impostazioni → Backup (copia consistente tramite l'API di backup di SQLite). Il ripristino salva prima una copia di sicurezza del database corrente. Nota: il backup contiene anche le eventuali chiavi API salvate nelle configurazioni dei motori.
+- **Progetti**: tutto viene salvato automaticamente nel database locale; *Salva su file* crea una copia portabile del progetto (`persona.project`), riapribile con *Apri da file* sullo stesso o su un altro computer (riusando i personaggi già presenti o importandoli come nuove identità). Un progetto riaperto accanto all'originale riceve un nome numerato, es. «Saga (2)».
 - **Esportazione personaggi e scenari**: JSON documentato in [`docs/export-format.md`](docs/export-format.md). L'importazione non sovrascrive mai dati esistenti (i personaggi di uno scenario possono essere riutilizzati se già presenti).
 
 ## Architettura in breve
@@ -162,6 +166,7 @@ Monorepo npm: `shared/` (tipi e schemi), `server/` (Fastify, SQLite, Drizzle, se
 - La regia automatica dei turni dipende dalla capacità del modello di rispondere in JSON; in caso contrario si ripiega sulla rotazione.
 - La competenza linguistica e specialistica del personaggio è simulata ed è limitata dalle reali capacità del modello scelto.
 - Modificare un messaggio non rielabora le memorie già estratte da quel messaggio.
+- Le conversazioni del laboratorio appartengono al personaggio, non al progetto: un personaggio condiviso tra più storie ha un'unica identità, un'unica memoria personale e le stesse conversazioni di laboratorio in tutte. Solo scenari, sessioni, simulazioni e memorie contestuali sono separati per progetto.
 
 ## Roadmap
 
