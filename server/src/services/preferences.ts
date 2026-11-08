@@ -1,0 +1,60 @@
+import type { Preferences, PreferencesUpdate } from '@persona/shared';
+import { preferencesUpdateSchema } from '@persona/shared';
+import { eq } from 'drizzle-orm';
+import type { AppContext } from '../context.js';
+import { userPreferences } from '../db/schema.js';
+import { nowIso, parseJson, validate } from '../lib/util.js';
+
+export const DEFAULT_PREFERENCES: Preferences = {
+  uiLanguage: 'it',
+  theme: 'dark',
+  conversationLanguage: 'auto',
+  defaultModelConfigId: null,
+  memory: {
+    autoProcess: true,
+    processThreshold: 12,
+    keepRecentMessages: 8,
+    reviewExtracted: false,
+  },
+  context: {
+    memoryRatio: 0.18,
+    knowledgeRatio: 0.12,
+    summaryRatio: 0.12,
+    excerptRatio: 0.08,
+    maxMemories: 24,
+    maxKnowledgeChunks: 6,
+    maxExcerpts: 4,
+    includeExcerpts: true,
+  },
+};
+
+const KEY = 'preferences';
+
+export function getPreferences(ctx: AppContext): Preferences {
+  const row = ctx.dbm.db.select().from(userPreferences).where(eq(userPreferences.key, KEY)).get();
+  const stored = parseJson<Partial<Preferences>>(row?.value, {});
+  return {
+    ...DEFAULT_PREFERENCES,
+    ...stored,
+    memory: { ...DEFAULT_PREFERENCES.memory, ...(stored.memory ?? {}) },
+    context: { ...DEFAULT_PREFERENCES.context, ...(stored.context ?? {}) },
+  };
+}
+
+export function updatePreferences(ctx: AppContext, input: PreferencesUpdate): Preferences {
+  const patch = validate(preferencesUpdateSchema, input);
+  const current = getPreferences(ctx);
+  const next: Preferences = {
+    ...current,
+    ...Object.fromEntries(Object.entries(patch).filter(([k, v]) => v !== undefined && k !== 'memory' && k !== 'context')),
+    memory: { ...current.memory, ...(patch.memory ?? {}) },
+    context: { ...current.context, ...(patch.context ?? {}) },
+  } as Preferences;
+  const value = JSON.stringify(next);
+  ctx.dbm.db
+    .insert(userPreferences)
+    .values({ key: KEY, value, updatedAt: nowIso() })
+    .onConflictDoUpdate({ target: userPreferences.key, set: { value, updatedAt: nowIso() } })
+    .run();
+  return next;
+}
