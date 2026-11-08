@@ -81,7 +81,10 @@ function AppearanceCard({ prefs }: { prefs: Preferences }) {
             options={(['dark', 'light', 'system'] as const).map((id) => ({ id, label: t(`theme.${id}`) }))}
           />
         </Field>
-        <Field label={t('settings.interfaceLanguage')} help={t('settings.plannedLanguages', { list: PLANNED_UI_LANGUAGES.map((c) => languageLabel(c)).join(', ') })}>
+        <Field
+          label={t('settings.interfaceLanguage')}
+          help={PLANNED_UI_LANGUAGES.length ? t('settings.plannedLanguages', { list: PLANNED_UI_LANGUAGES.map((c: string) => languageLabel(c)).join(', ') }) : undefined}
+        >
           <Select
             value={i18n.language}
             onChange={(e) => {

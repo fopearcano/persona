@@ -19,10 +19,11 @@ server/   Node 22 + Fastify 5 + SQLite (better-sqlite3) + Drizzle ORM
                    pdf.ts, scenario-portability.ts (bundle persona.scenario), portability.ts (personaggi, backup)
   src/embedded.ts  startPersonaServer(): avvio in-process su porta libera (usato da index.ts; base per Electron)
   test/            vitest + app.inject, sempre con provider mock (nessun LM Studio richiesto)
+desktop/  app Electron (pacchetto separato, fuori dai workspaces): src/main.ts, build.mjs (esbuild), smoke.mjs
 web/      React 19 + Vite 7 + Tailwind 4 + TanStack Query + Zustand + i18next
   src/pages/       Characters, CharacterEditor, Dialogue, Scenarios(+Editor), Simulations, Memory, Settings
   src/components/chat/  ChatWorkspace (streaming SSE), MessageItem, Inspector
-  src/i18n/locales/     it.json, en.json (stesse chiavi; test di parità)
+  src/i18n/locales/     it.json (riferimento), en, fr, es, de, pt (stesse chiavi; test di parità; fr/es/de/pt caricati su richiesta)
 docs/     architecture.md, export-format.md
 ```
 
@@ -43,7 +44,8 @@ identità → recupero memorie (retrieval.ts) → assemblaggio contesto (context
 
 ## Requisiti multilingua
 
-- Nessuna stringa visibile hardcoded nei componenti React: usare `t('…')` e aggiungere la chiave **sia** in `it.json` sia in `en.json` (il test `web/src/i18n/i18n.test.ts` verifica parità di chiavi e placeholder). Le chiavi di errore sono `errors.<ErrorCode>`.
+- Nessuna stringa visibile hardcoded nei componenti React: usare `t('…')` e aggiungere la chiave in **tutti** i file di `web/src/i18n/locales/` (it, en, fr, es, de, pt): il test `web/src/i18n/i18n.test.ts` verifica parità di chiavi e placeholder rispetto a `it.json`. Le chiavi di errore sono `errors.<ErrorCode>`.
+- Non usare `window.prompt` (non supportato nell'app Electron): campi in linea o modali.
 - Date/numeri/nomi di lingua con `Intl` tramite `web/src/lib/format.ts`.
 - Tre dimensioni indipendenti: lingua UI (preferenza `uiLanguage`), lingua di conversazione (`conversations.language`, `'auto'` o codice BCP-47, sovrascrivibile per messaggio), profilo linguistico del personaggio (`character_languages`). Le memorie restano nella lingua originale.
 - Recupero: FTS5 lessicale sempre; semantico (embedding multilingue locali) solo se attivato in `preferences.embeddings`, con fallback automatico al lessicale. Non dichiarare capacità semantiche quando gli embedding sono disattivati.
@@ -61,6 +63,9 @@ npm run check          # typecheck + test + build
 npm run db:generate    # (server) genera migrazione Drizzle dopo modifiche a schema.ts
 npm run db:migrate     # applica le migrazioni (avvengono anche automaticamente all'avvio)
 node scripts/e2e-smoke.cjs <cartella-screenshot>   # facoltativo, richiede playwright + server su :4399
+npm run desktop:install  # app desktop: installa Electron in desktop/node_modules (una volta)
+npm run desktop          # build frontend + avvio Electron
+xvfb-run npm run desktop:smoke   # verifica headless dell'app desktop
 ```
 
 Variabili: `PERSONA_DATA_DIR` (default `./data`), `PERSONA_PORT` (4317), `PERSONA_HOST` (127.0.0.1), `PERSONA_LMSTUDIO_URL`, `OPENAI_API_KEY`, `PERSONA_ALLOWED_HOSTS`. Vedi `.env.example`.
@@ -75,8 +80,8 @@ Variabili: `PERSONA_DATA_DIR` (default `./data`), `PERSONA_PORT` (4317), `PERSON
 - Ogni nuova funzionalità backend ha un test in `server/test/` usando `createTestEnv()` (provider mock predefinito). Non dichiarare funzionalità complete senza test eseguiti.
 - UI sobria: token colore in `web/src/index.css` (`bg-panel`, `text-muted`, `border-border`, `text-accent`, …), niente animazioni superflue.
 
-## Stato attuale (v0.2.0)
+## Stato attuale (v0.3.0)
 
-Implementato e testato: fasi 1–6 — fondazioni, personaggi, memoria, scenari, simulazioni (turni manuali, rotazione, regia automatica), recupero semantico ibrido con embedding locali, PDF nella base di conoscenza, export/import di personaggi e scenari, backup/restore, avvio in-process (`startPersonaServer`). 65 test server + 10 test web; smoke E2E Playwright (16 passaggi) con provider mock.
+Implementato e testato: fasi 1–6 — fondazioni, personaggi, memoria, scenari, simulazioni (turni manuali, rotazione, regia automatica), recupero semantico ibrido con embedding locali, PDF nella base di conoscenza, export/import di personaggi e scenari, backup/restore, app desktop Electron (Linux, headless), interfaccia in 6 lingue, indicatore di disponibilità del motore. 66 test server + 20 test web; smoke E2E Playwright (17 passaggi) e smoke desktop con provider mock.
 
-Non verificato in questo ambiente: LM Studio reale (chat ed embedding sono testati contro un server finto compatibile). Non implementati: involucro Electron vero e proprio, traduzioni UI oltre it/en, OCR. Dettagli: `README.md` § Limiti noti e `docs/architecture.md`.
+Non verificato in questo ambiente: LM Studio reale (chat ed embedding testati contro un server finto compatibile), app desktop su Windows/macOS. Non implementati: installer desktop, OCR. Traduzioni fr/es/de/pt non revisionate da madrelingua. Dettagli: `README.md` § Limiti noti e `docs/architecture.md`.

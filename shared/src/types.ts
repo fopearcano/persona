@@ -496,6 +496,20 @@ export interface Preferences {
   embeddings: EmbeddingPreferences;
 }
 
+/** Disponibilità del motore LLM di un personaggio (verifica rapida, senza generazione). */
+export interface EngineStatus {
+  configId: string | null;
+  configName: string | null;
+  providerType: ProviderType | null;
+  /** Modello che verrebbe usato (configurato o scelto automaticamente). */
+  model: string | null;
+  available: boolean;
+  /** LM Studio: il modello è già caricato in memoria (null se non noto). */
+  loaded: boolean | null;
+  error: { code: ErrorCode; message: string } | null;
+  checkedAt: string;
+}
+
 export interface EmbeddingStatus {
   enabled: boolean;
   model: string | null;

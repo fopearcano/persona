@@ -98,7 +98,7 @@ Prodotto da `GET /api/scenarios/:id/export?sessions=0|1` e accettato da `POST /a
   "format": "persona.scenario",
   "version": 1,
   "exportedAt": "…",
-  "app": { "name": "PERSONA", "version": "0.2.0" },
+  "app": { "name": "PERSONA", "version": "0.3.0" },
   "scenario": { "id": "…", "title": "Aurora", "description": "…", "setting": "…", "timeline": "…", "environment": "…",
                 "initialSituation": "…", "currentSituation": "…", "knowledge": "…", "language": "en" | null,
                 "status": "active", "createdAt": "…", "updatedAt": "…" },

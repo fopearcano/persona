@@ -206,6 +206,17 @@ mkdirSync(SHOTS, { recursive: true });
     await page.reload();
     await page.getByRole('heading', { name: 'Characters' }).waitFor();
   });
+  await step('german ui (lazy-loaded locale)', async () => {
+    await page.goto(BASE + '/settings');
+    await page.getByLabel('Interface language').selectOption('de');
+    await page.getByRole('heading', { name: 'Einstellungen' }).waitFor();
+    await page.getByRole('link', { name: 'Gedächtnis' }).waitFor();
+    await page.reload();
+    await page.getByRole('heading', { name: 'Einstellungen' }).waitFor({ timeout: 5000 });
+    await page.screenshot({ path: `${SHOTS}/settings-de.png` });
+    await page.getByLabel('Sprache der Oberfläche').selectOption('en');
+    await page.getByRole('heading', { name: 'Settings' }).waitFor();
+  });
   await step('light theme', async () => {
     await page.goto(BASE + '/settings');
     await page.getByRole('radio', { name: 'Light' }).click();

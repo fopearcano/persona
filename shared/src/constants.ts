@@ -73,11 +73,11 @@ export type TurnMode = (typeof TURN_MODES)[number];
 export const SCENARIO_STATUSES = ['active', 'archived'] as const;
 export type ScenarioStatus = (typeof SCENARIO_STATUSES)[number];
 
-/** Lingue dell'interfaccia effettivamente tradotte. */
-export const UI_LANGUAGES = ['it', 'en'] as const;
+/** Lingue dell'interfaccia tradotte (it = predefinita e riferimento delle chiavi). */
+export const UI_LANGUAGES = ['it', 'en', 'fr', 'es', 'de', 'pt'] as const;
 export type UiLanguage = (typeof UI_LANGUAGES)[number];
 /** Lingue dell'interfaccia previste ma non ancora tradotte. */
-export const PLANNED_UI_LANGUAGES = ['fr', 'es', 'de', 'pt'] as const;
+export const PLANNED_UI_LANGUAGES = [] as const;
 
 export const THEMES = ['dark', 'light', 'system'] as const;
 export type Theme = (typeof THEMES)[number];

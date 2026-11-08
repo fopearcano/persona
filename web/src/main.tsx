@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
 import { usePreferences } from './api/hooks';
 import { App } from './App';
-import i18n from './i18n';
+import i18n, { ready, setUiLanguage } from './i18n';
 import './index.css';
 import { applyTheme, useUi } from './stores/ui';
 
@@ -21,15 +21,14 @@ function PreferencesSync() {
   useEffect(() => {
     if (!data || applied.current) return;
     applied.current = true;
-    if (data.uiLanguage && data.uiLanguage !== i18n.language && i18n.options.supportedLngs && (i18n.options.supportedLngs as string[]).includes(data.uiLanguage)) {
-      void i18n.changeLanguage(data.uiLanguage);
-    }
+    if (data.uiLanguage && data.uiLanguage !== i18n.language) void setUiLanguage(data.uiLanguage);
     if (data.theme !== useUi.getState().theme) useUi.getState().setTheme(data.theme);
   }, [data]);
   return null;
 }
 
 applyTheme(useUi.getState().theme);
+await ready;
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

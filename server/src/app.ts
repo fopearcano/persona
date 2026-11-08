@@ -27,7 +27,7 @@ export async function buildApp(opts: BuildOptions = {}): Promise<{ app: FastifyI
     logger: opts.logger ?? false,
     bodyLimit: 64 * 1024 * 1024,
   });
-  const dbm = new DatabaseManager(config.databaseFile);
+  const dbm = new DatabaseManager(config.databaseFile, config.migrationsDir);
   const ctx: AppContext = {
     dbm,
     config,

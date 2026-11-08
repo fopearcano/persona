@@ -16,14 +16,14 @@ interface Handle {
 
 const REQUIRED_TABLES = ['characters', 'memories', 'conversations', 'messages', 'scenarios'];
 
-function open(file: string): Handle {
+function open(file: string, migrationsFolder: string): Handle {
   if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
   const sqlite = new Database(file);
   if (file !== ':memory:') sqlite.pragma('journal_mode = WAL');
   sqlite.pragma('foreign_keys = ON');
   sqlite.pragma('busy_timeout = 5000');
   const db = drizzle(sqlite, { schema });
-  migrate(db, { migrationsFolder: MIGRATIONS_DIR });
+  migrate(db, { migrationsFolder });
   return { sqlite, db };
 }
 
@@ -37,8 +37,11 @@ export class DatabaseManager {
   /** Incrementato a ogni sostituzione del database (invalida le cache in memoria). */
   generation = 0;
 
-  constructor(public readonly file: string) {
-    this.handle = open(file);
+  constructor(
+    public readonly file: string,
+    private readonly migrationsDir: string = MIGRATIONS_DIR,
+  ) {
+    this.handle = open(file, migrationsDir);
   }
 
   get db(): Db {
@@ -93,11 +96,11 @@ export class DatabaseManager {
     this.generation++;
     try {
       copyFileSync(source, this.file);
-      this.handle = open(this.file);
+      this.handle = open(this.file, this.migrationsDir);
     } catch (err) {
       // Ripristino fallito: torna alla copia di sicurezza.
       copyFileSync(safetyCopy, this.file);
-      this.handle = open(this.file);
+      this.handle = open(this.file, this.migrationsDir);
       throw err;
     }
   }

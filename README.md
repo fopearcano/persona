@@ -9,6 +9,8 @@ PERSONA permette di creare, mantenere, interrogare e simulare personaggi che esi
 
 Nessun account, nessun abbonamento, nessuna telemetria. Tutti i dati restano in un file SQLite sul tuo computer.
 
+Interfaccia disponibile in **italiano** (predefinita), inglese, francese, spagnolo, tedesco e portoghese; i personaggi possono conversare in qualsiasi lingua supportata dal modello.
+
 ---
 
 ## Requisiti
@@ -46,6 +48,17 @@ npm start
 ```
 
 Apri **`http://127.0.0.1:4317`**: il backend serve sia le API sia l'interfaccia.
+
+### Applicazione desktop (Electron, facoltativa)
+
+La cartella `desktop/` contiene un involucro Electron che avvia il backend dentro l'app (porta libera su `127.0.0.1`) e apre l'interfaccia in una finestra propria. È un pacchetto separato: `npm install` nella root non scarica Electron.
+
+```bash
+npm run desktop:install   # una sola volta: Electron e dipendenze in desktop/node_modules
+npm run desktop           # build del frontend + avvio dell'app desktop
+```
+
+I dati dell'app desktop stanno nella cartella utente del sistema (`…/PERSONA/data`, oppure `PERSONA_DATA_DIR`). Verifica non interattiva: `npm run desktop:smoke` (su Linux senza display: `xvfb-run npm run desktop:smoke`). La creazione di installer (electron-builder/forge) non è ancora configurata.
 
 Il database viene creato in `./data/persona.db` e le migrazioni vengono applicate automaticamente all'avvio. Per cambiare cartella o porta: variabili `PERSONA_DATA_DIR`, `PERSONA_PORT` (vedi `.env.example`; un file `.env` nella root o in `server/` viene letto automaticamente).
 
@@ -131,6 +144,8 @@ Monorepo npm: `shared/` (tipi e schemi), `server/` (Fastify, SQLite, Drizzle, se
 - Il recupero semantico non è stato verificato con un modello di embedding reale in questo ambiente: è testato con l'endpoint `/v1/embeddings` di un server finto e con il provider mock.
 - La qualità dell'estrazione automatica di memorie dipende dalla capacità del modello di produrre JSON valido; in caso contrario non viene creata alcuna memoria (nessuna corruzione dei dati).
 - Il conteggio dei token è una stima (circa 3,5 caratteri per token); impostare la lunghezza del contesto con margine.
+- Le traduzioni dell'interfaccia in francese, spagnolo, tedesco e portoghese non sono state riviste da madrelingua.
+- L'app desktop è verificata su Linux (Electron 45, in modalità headless con Xvfb); non è stata provata su Windows e macOS e non produce ancora installer.
 - PDF: viene estratto solo il testo selezionabile (nessun OCR per i documenti scansionati).
 - La regia automatica dei turni dipende dalla capacità del modello di rispondere in JSON; in caso contrario si ripiega sulla rotazione.
 - La competenza linguistica e specialistica del personaggio è simulata ed è limitata dalle reali capacità del modello scelto.
@@ -138,7 +153,7 @@ Monorepo npm: `shared/` (tipi e schemi), `server/` (Fastify, SQLite, Drizzle, se
 
 ## Roadmap
 
-- Involucro Electron (il backend è già avviabile in-process con `startPersonaServer`).
-- Ulteriori lingue dell'interfaccia (francese, spagnolo, tedesco, portoghese).
+- Installer desktop (electron-builder) e firma del codice.
 - Indice vettoriale (es. sqlite-vec) per basi di memoria molto grandi.
 - OCR per PDF scansionati.
+- Revisione delle traduzioni da parte di madrelingua; altre lingue dell'interfaccia.

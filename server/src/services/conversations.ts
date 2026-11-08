@@ -25,10 +25,21 @@ import { getParticipant, getScenarioRow } from './scenarios.js';
 export type ConversationRow = typeof conversations.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
 
+/** Titolo provvisorio nella lingua dell'interfaccia (sostituito dal titolo automatico). */
+const DEFAULT_TITLE_BY_LANGUAGE: Record<string, string> = {
+  it: 'Nuova conversazione',
+  en: 'New conversation',
+  fr: 'Nouvelle conversation',
+  es: 'Nueva conversación',
+  de: 'Neues Gespräch',
+  pt: 'Nova conversa',
+};
+
 export function defaultTitle(ctx: AppContext): string {
-  return getPreferences(ctx).uiLanguage.startsWith('it') ? 'Nuova conversazione' : 'New conversation';
+  const lang = getPreferences(ctx).uiLanguage.split('-')[0];
+  return DEFAULT_TITLE_BY_LANGUAGE[lang] ?? DEFAULT_TITLE_BY_LANGUAGE.en;
 }
-export const DEFAULT_TITLES = new Set(['Nuova conversazione', 'New conversation']);
+export const DEFAULT_TITLES = new Set(Object.values(DEFAULT_TITLE_BY_LANGUAGE));
 
 export function toMessage(m: MessageRow): Message {
   return {

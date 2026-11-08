@@ -1,4 +1,4 @@
-import type { ConnectionTestResult, ModelConfig, ModelConfigInput, ModelInfo } from '@persona/shared';
+import type { ConnectionTestResult, EngineStatus, ModelConfig, ModelConfigInput, ModelInfo } from '@persona/shared';
 import { modelConfigInputSchema, modelProbeSchema } from '@persona/shared';
 import { asc, eq } from 'drizzle-orm';
 import type { AppContext } from '../context.js';
@@ -135,7 +135,7 @@ export interface ResolvedEngine {
  * Seleziona il motore per un personaggio: configurazione del personaggio, altrimenti
  * predefinita. Cambiare motore non modifica in alcun modo identità o memorie.
  */
-export async function resolveEngine(ctx: AppContext, modelConfigId: string | null, signal?: AbortSignal): Promise<ResolvedEngine> {
+function resolveConfigRow(ctx: AppContext, modelConfigId: string | null): Row {
   let row: Row | undefined;
   if (modelConfigId) {
     row = ctx.dbm.db.select().from(modelConfigurations).where(eq(modelConfigurations.id, modelConfigId)).get();
@@ -148,6 +148,11 @@ export async function resolveEngine(ctx: AppContext, modelConfigId: string | nul
   }
   if (!row) row = ctx.dbm.db.select().from(modelConfigurations).where(eq(modelConfigurations.isDefault, true)).get();
   if (!row) throw new AppError('no_model_config', 'Nessuna configurazione del modello disponibile', 409);
+  return row;
+}
+
+export async function resolveEngine(ctx: AppContext, modelConfigId: string | null, signal?: AbortSignal): Promise<ResolvedEngine> {
+  const row = resolveConfigRow(ctx, modelConfigId);
   const provider = ctx.providers.create(row);
   const model = await resolveModelId(provider, row.model, signal);
   return { config: row, provider, model };
@@ -217,4 +222,42 @@ export async function probeModels(ctx: AppContext, input: unknown): Promise<Mode
 
 export async function listModelsFor(ctx: AppContext, id: string): Promise<ModelInfo[]> {
   return ctx.providers.create(getModelConfigRow(ctx, id)).listModels();
+}
+
+/**
+ * Verifica rapida della disponibilità del motore (elenco modelli, timeout breve):
+ * permette all'interfaccia di segnalare un LM Studio spento prima dell'invio.
+ */
+export async function engineStatus(ctx: AppContext, modelConfigId: string | null): Promise<EngineStatus> {
+  const checkedAt = new Date().toISOString();
+  let row: Row;
+  try {
+    row = resolveConfigRow(ctx, modelConfigId);
+  } catch (err) {
+    return { configId: null, configName: null, providerType: null, model: null, available: false, loaded: null, error: errorOf(err), checkedAt };
+  }
+  const base = { configId: row.id, configName: row.name, providerType: row.providerType as EngineStatus['providerType'], checkedAt };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
+  try {
+    const provider = ctx.providers.create(row);
+    const models = await provider.listModels(controller.signal);
+    const model = await resolveModelId(provider, row.model, controller.signal);
+    const info = models.find((m) => m.id === model);
+    if (row.model && !info) {
+      return {
+        ...base,
+        model,
+        available: false,
+        loaded: null,
+        error: { code: 'llm_model_not_found', message: `Modello non disponibile: ${model}` },
+      };
+    }
+    return { ...base, model, available: true, loaded: info?.loaded ?? null, error: null };
+  } catch (err) {
+    const e = controller.signal.aborted ? { code: 'llm_timeout' as const, message: 'Nessuna risposta entro 4 s' } : errorOf(err);
+    return { ...base, model: row.model || null, available: false, loaded: null, error: e };
+  } finally {
+    clearTimeout(timer);
+  }
 }

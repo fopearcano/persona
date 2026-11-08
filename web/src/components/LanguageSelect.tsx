@@ -1,13 +1,17 @@
 import { AUTO_LANGUAGE, COMMON_LANGUAGE_CODES } from '@persona/shared/client';
+import { Check, X } from 'lucide-react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { languageLabel, nativeLanguageLabel } from '../lib/format';
-import { Select } from './ui';
+import { cx, IconButton, Input, Select } from './ui';
 
 const CUSTOM = '__custom__';
+const BCP47 = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
 
 /**
  * Selettore di lingua con nomi localizzati (Intl.DisplayNames).
- * L'elenco non è limitante: "Altro codice…" consente qualsiasi codice BCP-47.
+ * L'elenco non è limitante: "Altro codice…" consente qualsiasi codice BCP-47
+ * (campo in linea: window.prompt non è disponibile nell'app desktop).
  */
 export function LanguageSelect({
   value,
@@ -31,8 +35,42 @@ export function LanguageSelect({
   ariaLabel?: string;
 }) {
   const { t } = useTranslation();
+  const [custom, setCustom] = useState<string | null>(null);
   const codes: string[] = [...COMMON_LANGUAGE_CODES];
   if (value && value !== AUTO_LANGUAGE && !codes.includes(value)) codes.push(value);
+
+  if (custom !== null) {
+    const valid = BCP47.test(custom.trim());
+    const confirm = () => {
+      if (!valid) return;
+      onChange(custom.trim());
+      setCustom(null);
+    };
+    return (
+      <div className={cx('flex items-center gap-1', className)}>
+        <Input
+          id={id}
+          autoFocus
+          className={cx(!valid && custom && 'border-danger')}
+          value={custom}
+          placeholder="pt-BR"
+          aria-label={t('common.customLanguagePrompt')}
+          title={t('common.customLanguagePrompt')}
+          onChange={(e) => setCustom(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              confirm();
+            }
+            if (e.key === 'Escape') setCustom(null);
+          }}
+        />
+        <IconButton label={t('common.confirm')} icon={<Check className="size-4" />} disabled={!valid} onClick={confirm} />
+        <IconButton label={t('common.cancel')} icon={<X className="size-4" />} onClick={() => setCustom(null)} />
+      </div>
+    );
+  }
+
   return (
     <Select
       id={id}
@@ -42,8 +80,7 @@ export function LanguageSelect({
       onChange={(e) => {
         const v = e.target.value;
         if (v === CUSTOM) {
-          const code = window.prompt(t('common.customLanguagePrompt'))?.trim();
-          if (code && /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(code)) onChange(code);
+          setCustom('');
           return;
         }
         onChange(v === '' ? null : v);

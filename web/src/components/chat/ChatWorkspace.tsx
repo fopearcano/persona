@@ -10,6 +10,7 @@ import { useCharacters, useConversation, useInvalidate, useScenario } from '../.
 import { useUi } from '../../stores/ui';
 import { LanguageSelect } from '../LanguageSelect';
 import { Badge, Button, cx, ErrorBox, IconButton, Input, Segmented, Select, Spinner, Textarea, useErrorText } from '../ui';
+import { EngineBadge } from './EngineBadge';
 import { Inspector } from './Inspector';
 import { MessageItem, RichText } from './MessageItem';
 
@@ -258,6 +259,7 @@ export function ChatWorkspace({ conversationId, onDeleted }: { conversationId: s
               </button>
             )}
             {conv.archived && <Badge>{t('enums.memoryStatus.archived')}</Badge>}
+            {conv.characterId && <EngineBadge characterId={conv.characterId} />}
           </div>
         )}
         <div className="flex items-center gap-1">

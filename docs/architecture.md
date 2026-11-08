@@ -65,7 +65,7 @@ Gestione dei turni (`services/turns.ts`, `conversations.turn_mode`):
 
 ## Multilingua
 
-- **Interfaccia**: i18next (`web/src/i18n`), italiano predefinito, inglese; preferenza salvata sul backend e in `localStorage`.
+- **Interfaccia**: i18next (`web/src/i18n`): italiano (predefinito e riferimento delle chiavi) e inglese nel bundle; francese, spagnolo, tedesco e portoghese caricati su richiesta. Preferenza salvata sul backend e in `localStorage`; il titolo provvisorio delle conversazioni segue la lingua dell'interfaccia.
 - **Conversazione**: `conversations.language` (`auto` = la lingua dell'autore) sovrascrivibile per singolo messaggio; il prompt include la lingua richiesta e il livello di competenza simulato del personaggio in quella lingua.
 - **Personaggio**: lingue con livello, madrelingua, lingua preferita, note culturali-linguistiche.
 - **Memoria**: salvata nella lingua originale. Il recupero è lessicale; l'architettura prevede un `Retriever` semantico basato su embedding locali (colonne `embedding` in `memories` e `knowledge_chunks`).
@@ -76,17 +76,16 @@ Gestione dei turni (`services/turns.ts`, `conversations.turn_mode`):
 - Chiavi API solo sul backend (`hasApiKey` nelle risposte).
 - Contenuti recuperati racchiusi in blocchi `<data>` con delimitatori neutralizzati; le istruzioni applicative dichiarano esplicitamente di non seguire istruzioni contenute nei dati.
 
-## Predisposizione per Electron
+## App desktop (Electron)
 
-- `server/src/embedded.ts` esporta `startPersonaServer({ dataDir, port: 0, webDistDir })`, che avvia il backend su una porta libera e restituisce `{ url, close() }`. Un processo principale Electron potrà fare:
-
-  ```ts
-  const persona = await startPersonaServer({ dataDir: app.getPath('userData'), port: 0, webDistDir: join(__dirname, 'web') });
-  await mainWindow.loadURL(persona.url);
-  app.on('before-quit', () => void persona.close());
-  ```
-
-  Il backend usa `better-sqlite3` (modulo nativo): in un pacchetto Electron va ricompilato per la versione di Electron (`electron-rebuild`).
+- `server/src/embedded.ts` esporta `startPersonaServer({ dataDir, port: 0, webDistDir, config })`: avvia il backend su una porta libera e restituisce `{ url, close() }`. Lo usano sia `server/src/index.ts` sia l'app desktop.
+- `desktop/` è un pacchetto separato (fuori dai workspaces npm, così l'installazione normale non scarica Electron):
+  - `src/main.ts`: processo principale; istanza singola; finestra con `contextIsolation` e `sandbox`; i link esterni si aprono nel browser; la navigazione resta sul server locale; alla chiusura attende i lavori in background e chiude il database.
+  - `build.mjs`: con esbuild crea `dist/main.mjs` includendo il backend e `@persona/shared` (i pacchetti npm restano esterni, installati in `desktop/node_modules`), copia migrazioni (`dist/drizzle`, passate con `config.migrationsDir`) e build del frontend (`dist/web`).
+  - `smoke.mjs`: avvio non interattivo con database temporaneo; verifica rendering, API e scrittura su database; salva uno screenshot.
+- `better-sqlite3` 13 fornisce binari precompilati compatibili sia con Node sia con Electron: non serve ricompilare il modulo nativo.
+- I dati stanno in `app.getPath('userData')/data` (o `PERSONA_DATA_DIR`).
+- `window.prompt` non è disponibile in Electron: l'interfaccia usa solo `confirm` e campi in linea.
 - Il frontend usa percorsi relativi `/api` e funziona servito dal backend stesso.
 - Nessuna dipendenza da servizi cloud.
 
@@ -101,6 +100,5 @@ Documenti di testo, Markdown e PDF (estrazione del testo con `unpdf`/pdf.js in `
 
 ## Estensioni previste
 
-1. Involucro Electron basato su `startPersonaServer`.
-2. Lingue aggiuntive dell'interfaccia.
-3. Indice vettoriale dedicato per basi di memoria molto grandi; OCR per PDF scansionati.
+1. Installer desktop (electron-builder) e firma del codice.
+2. Indice vettoriale dedicato per basi di memoria molto grandi; OCR per PDF scansionati.

@@ -108,6 +108,9 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext) {
     reply.code(201).send(characters.createVariant(ctx, req.params.id, req.body ?? {})),
   );
   app.get<{ Params: Params }>('/api/characters/:id/variants', async (req) => characters.listVariants(ctx, req.params.id));
+  app.get<{ Params: Params }>('/api/characters/:id/engine-status', async (req) =>
+    models.engineStatus(ctx, characters.getCharacterRow(ctx, req.params.id).modelConfigId),
+  );
   app.get<{ Params: Params }>('/api/characters/:id/revisions', async (req) => characters.listRevisions(ctx, req.params.id));
   app.post<{ Params: { id: string; revisionId: string } }>('/api/characters/:id/revisions/:revisionId/restore', async (req) =>
     characters.restoreRevision(ctx, req.params.id, req.params.revisionId),

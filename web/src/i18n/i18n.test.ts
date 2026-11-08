@@ -1,31 +1,41 @@
+import { UI_LANGUAGES } from '@persona/shared/client';
 import { describe, expect, it } from 'vitest';
+import de from './locales/de.json';
 import en from './locales/en.json';
+import es from './locales/es.json';
+import fr from './locales/fr.json';
 import it_ from './locales/it.json';
+import pt from './locales/pt.json';
+import { loaders, resources as bundled } from './index';
 
-function keys(obj: unknown, prefix = ''): string[] {
-  if (typeof obj !== 'object' || obj === null) return [prefix];
-  return Object.entries(obj as Record<string, unknown>).flatMap(([k, v]) => keys(v, prefix ? `${prefix}.${k}` : k));
-}
+const resources = { it: { translation: it_ }, en: { translation: en }, fr: { translation: fr }, es: { translation: es }, de: { translation: de }, pt: { translation: pt } };
 
-function placeholders(s: string) {
-  return [...s.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]).sort();
+type Tree = Record<string, unknown>;
+
+function flat(o: unknown, p = ''): [string, string][] {
+  if (typeof o === 'string') return [[p, o]];
+  return Object.entries(o as Tree).flatMap(([k, v]) => flat(v, p ? `${p}.${k}` : k));
 }
+const placeholders = (s: string) => [...s.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]).sort();
+const reference = new Map(flat(resources.it.translation));
+const others = Object.keys(resources).filter((l) => l !== 'it') as (keyof typeof resources)[];
 
 describe('translations', () => {
-  it('Italian and English expose exactly the same keys', () => {
-    expect(keys(en).sort()).toEqual(keys(it_).sort());
+  it('every interface language is bundled or lazily loadable', () => {
+    expect([...Object.keys(bundled), ...Object.keys(loaders)].sort()).toEqual([...UI_LANGUAGES].sort());
   });
 
-  it('interpolation placeholders match between languages', () => {
-    const flat = (o: unknown, p = ''): [string, string][] =>
-      typeof o === 'string' ? [[p, o]] : Object.entries(o as Record<string, unknown>).flatMap(([k, v]) => flat(v, p ? `${p}.${k}` : k));
-    const enMap = new Map(flat(en));
-    for (const [k, v] of flat(it_)) expect(placeholders(enMap.get(k) ?? ''), k).toEqual(placeholders(v));
+  it.each(others)('%s exposes exactly the keys of the Italian reference', (lang) => {
+    expect(flat(resources[lang].translation).map(([k]) => k).sort()).toEqual([...reference.keys()].sort());
+  });
+
+  it.each(others)('%s keeps the same interpolation placeholders', (lang) => {
+    for (const [k, v] of flat(resources[lang].translation)) expect(placeholders(v), `${lang}:${k}`).toEqual(placeholders(reference.get(k) ?? ''));
   });
 
   it('has no empty strings', () => {
-    const flat = (o: unknown): string[] => (typeof o === 'string' ? [o] : Object.values(o as Record<string, unknown>).flatMap(flat));
-    expect(flat(it_).filter((s) => !s.trim())).toEqual([]);
-    expect(flat(en).filter((s) => !s.trim())).toEqual([]);
+    for (const lang of Object.keys(resources) as (keyof typeof resources)[]) {
+      expect(flat(resources[lang].translation).filter(([, v]) => !v.trim())).toEqual([]);
+    }
   });
 });

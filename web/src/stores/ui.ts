@@ -1,6 +1,6 @@
 import type { Theme } from '@persona/shared/client';
 import { create } from 'zustand';
-import i18n from '../i18n';
+import { setUiLanguage } from '../i18n';
 
 const THEME_KEY = 'persona.theme';
 
@@ -51,7 +51,7 @@ export const useUi = create<UiState>((set, get) => ({
     set({ theme });
   },
   setLanguage(lang) {
-    void i18n.changeLanguage(lang);
+    void setUiLanguage(lang);
   },
   toasts: [],
   toast(text, kind = 'info') {

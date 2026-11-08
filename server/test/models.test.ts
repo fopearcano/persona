@@ -79,6 +79,28 @@ describe('model configurations', () => {
   });
 });
 
+describe('engine status', () => {
+  it('reports whether a character engine is reachable before sending', async () => {
+    const c = await createCharacter(env);
+    const ok = (await env.app.inject({ method: 'GET', url: `/api/characters/${c.id}/engine-status` })).json();
+    expect(ok).toMatchObject({ available: true, providerType: 'mock', model: 'mock-persona', loaded: true, error: null });
+
+    const configs = (await env.app.inject({ method: 'GET', url: '/api/model-configs' })).json() as ModelConfig[];
+    const lm = configs.find((x) => x.providerType === 'lmstudio')!;
+    await env.app.inject({ method: 'PUT', url: `/api/characters/${c.id}/model`, payload: { modelConfigId: lm.id } });
+    const down = (await env.app.inject({ method: 'GET', url: `/api/characters/${c.id}/engine-status` })).json();
+    expect(down).toMatchObject({ available: false, providerType: 'lmstudio', configName: 'LM Studio (locale)' });
+    expect(down.error.code).toBe('llm_unavailable');
+
+    const missing = (
+      await env.app.inject({ method: 'POST', url: '/api/model-configs', payload: { name: 'Sbagliato', providerType: 'mock', model: 'non-esiste' } })
+    ).json();
+    await env.app.inject({ method: 'PUT', url: `/api/characters/${c.id}/model`, payload: { modelConfigId: missing.id } });
+    const nf = (await env.app.inject({ method: 'GET', url: `/api/characters/${c.id}/engine-status` })).json();
+    expect(nf.error.code).toBe('llm_model_not_found');
+  });
+});
+
 describe('preferences', () => {
   it('persists language and theme preferences across restarts', async () => {
     const initial = (await env.app.inject({ method: 'GET', url: '/api/preferences' })).json();
@@ -102,6 +124,9 @@ describe('preferences', () => {
     const conv = (await env.app.inject({ method: 'POST', url: '/api/conversations', payload: { kind: 'lab', characterId: c.id } })).json();
     expect(conv.language).toBe('ru');
     expect(conv.title).toBe('New conversation');
+    await env.app.inject({ method: 'PUT', url: '/api/preferences', payload: { uiLanguage: 'de' } });
+    const de = (await env.app.inject({ method: 'POST', url: '/api/conversations', payload: { kind: 'lab', characterId: c.id } })).json();
+    expect(de.title).toBe('Neues Gespräch');
   });
 
   it('validates preference values', async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import i18n from '../i18n';
+import i18n, { setUiLanguage } from '../i18n';
 import { useUi } from './ui';
 
 describe('ui preferences', () => {
@@ -17,6 +17,16 @@ describe('ui preferences', () => {
     expect(i18n.language).toBe('en');
     expect(localStorage.getItem('persona.uiLanguage')).toBe('en');
     expect(document.documentElement.lang).toBe('en');
-    useUi.getState().setLanguage('it');
+  });
+
+  it('loads additional languages on demand', async () => {
+    await setUiLanguage('de');
+    expect(i18n.language).toBe('de');
+    expect(i18n.t('nav.memory')).toBe('Gedächtnis');
+    await setUiLanguage('pt');
+    expect(i18n.t('chat.send')).toBe('Enviar');
+    await setUiLanguage('xx');
+    expect(i18n.language).toBe('pt');
+    await setUiLanguage('it');
   });
 });
