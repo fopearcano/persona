@@ -15,7 +15,7 @@ import {
   MEMORY_STATUSES,
   traitInputSchema,
 } from '@persona/shared';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
 import { mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
@@ -432,11 +432,18 @@ function stamp() {
   return new Date().toISOString().replace(/[-:]/g, '').replace(/\..+$/, '').replace('T', '-');
 }
 
-export async function createBackup(ctx: AppContext, prefix = 'persona'): Promise<BackupInfo> {
+/** Nome di file univoco nella cartella dei backup (risoluzione al secondo + contatore). */
+function uniqueBackupName(ctx: AppContext, prefix: string): string {
   mkdirSync(ctx.config.backupsDir, { recursive: true });
-  let fileName = `${prefix}-${stamp()}.db`;
-  let n = 1;
-  while (readdirSafe(ctx.config.backupsDir).includes(fileName)) fileName = `${prefix}-${stamp()}-${n++}.db`;
+  const existing = new Set(readdirSafe(ctx.config.backupsDir));
+  const base = `${prefix}-${stamp()}`;
+  let fileName = `${base}.db`;
+  for (let n = 1; existing.has(fileName); n++) fileName = `${base}-${n}.db`;
+  return fileName;
+}
+
+export async function createBackup(ctx: AppContext, prefix = 'persona'): Promise<BackupInfo> {
+  const fileName = uniqueBackupName(ctx, prefix);
   const full = join(ctx.config.backupsDir, fileName);
   await ctx.dbm.backupTo(full);
   const st = statSync(full);
@@ -492,19 +499,11 @@ export async function restoreFromStored(ctx: AppContext, fileName: string): Prom
 }
 
 async function restoreFromFile(ctx: AppContext, file: string): Promise<{ safetyBackup: string }> {
-  const safetyName = `persona-pre-restore-${stamp()}.db`;
+  const safetyName = uniqueBackupName(ctx, 'persona-pre-restore');
   try {
     await ctx.dbm.restoreFrom(file, join(ctx.config.backupsDir, safetyName));
   } catch (err) {
     throw new AppError('invalid_backup', `Ripristino non riuscito: ${(err as Error).message}`, 400);
   }
   return { safetyBackup: safetyName };
-}
-
-export function countScenarioMemories(ctx: AppContext, characterId: string, scenarioId: string): number {
-  return ctx.dbm.db
-    .select({ id: memories.id })
-    .from(memories)
-    .where(and(eq(memories.characterId, characterId), eq(memories.scenarioId, scenarioId)))
-    .all().length;
 }

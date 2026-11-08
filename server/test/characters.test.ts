@@ -49,7 +49,7 @@ describe('characters', () => {
     expect(model.json().modelConfigId).toBe(env.mockConfigId);
 
     // Salvare senza modifiche non crea revisioni.
-    const same = await env.app.inject({ method: 'PUT', url: `/api/characters/${c.id}`, payload: { ...upd.json() } });
+    const same = await env.app.inject({ method: 'PUT', url: `/api/characters/${c.id}`, payload: { ...(upd.json() as object) } });
     expect(same.json().identityVersion).toBe(2);
 
     const revs = (await env.app.inject({ method: 'GET', url: `/api/characters/${c.id}/revisions` })).json();
