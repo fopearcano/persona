@@ -20,7 +20,7 @@ server/   Node 22 + Fastify 5 + SQLite (better-sqlite3) + Drizzle ORM
   src/embedded.ts  startPersonaServer(): avvio in-process su porta libera (usato da index.ts; base per Electron)
   test/            vitest + app.inject, sempre con provider mock (nessun LM Studio richiesto)
 desktop/  app Electron (pacchetto separato, fuori dai workspaces): src/main.ts, build.mjs (esbuild), smoke.mjs,
-          configurazione electron-builder nel campo "build" di desktop/package.json, icona in desktop/build/icon.png
+          configurazione electron-builder in desktop/electron-builder.config.cjs, icona in desktop/build/icon.png
 web/      React 19 + Vite 7 + Tailwind 4 + TanStack Query + Zustand + i18next
   src/pages/       Characters, CharacterEditor, Dialogue, Scenarios(+Editor), Simulations, Memory, Settings
   src/components/chat/  ChatWorkspace (streaming SSE), MessageItem, Inspector
