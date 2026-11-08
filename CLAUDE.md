@@ -19,7 +19,8 @@ server/   Node 22 + Fastify 5 + SQLite (better-sqlite3) + Drizzle ORM
                    pdf.ts, scenario-portability.ts (bundle persona.scenario), portability.ts (personaggi, backup)
   src/embedded.ts  startPersonaServer(): avvio in-process su porta libera (usato da index.ts; base per Electron)
   test/            vitest + app.inject, sempre con provider mock (nessun LM Studio richiesto)
-desktop/  app Electron (pacchetto separato, fuori dai workspaces): src/main.ts, build.mjs (esbuild), smoke.mjs
+desktop/  app Electron (pacchetto separato, fuori dai workspaces): src/main.ts, build.mjs (esbuild), smoke.mjs,
+          configurazione electron-builder nel campo "build" di desktop/package.json, icona in desktop/build/icon.png
 web/      React 19 + Vite 7 + Tailwind 4 + TanStack Query + Zustand + i18next
   src/pages/       Characters, CharacterEditor, Dialogue, Scenarios(+Editor), Simulations, Memory, Settings
   src/components/chat/  ChatWorkspace (streaming SSE), MessageItem, Inspector
@@ -66,7 +67,10 @@ node scripts/e2e-smoke.cjs <cartella-screenshot>   # facoltativo, richiede playw
 npm run desktop:install  # app desktop: installa Electron in desktop/node_modules (una volta)
 npm run desktop          # build frontend + avvio Electron
 xvfb-run npm run desktop:smoke   # verifica headless dell'app desktop
+cd desktop && npm run dist:linux # installer locali (dist:win / dist:mac sui rispettivi sistemi) → desktop/release/
 ```
+
+Release: versione in `desktop/package.json` + note in `docs/releases/vX.Y.Z.md`, poi tag `vX.Y.Z` (o workflow *Release* manuale con il tag). `.github/workflows/release.yml`: verifica → installer Linux (AppImage, deb), Windows (NSIS), macOS (dmg arm64/x64, firma ad hoc) con smoke test dell'app impacchettata → GitHub Release con SHA256SUMS. Installer non firmati.
 
 Variabili: `PERSONA_DATA_DIR` (default `./data`), `PERSONA_PORT` (4317), `PERSONA_HOST` (127.0.0.1), `PERSONA_LMSTUDIO_URL`, `OPENAI_API_KEY`, `PERSONA_ALLOWED_HOSTS`. Vedi `.env.example`.
 
@@ -84,4 +88,6 @@ Variabili: `PERSONA_DATA_DIR` (default `./data`), `PERSONA_PORT` (4317), `PERSON
 
 Implementato e testato: fasi 1–6 — fondazioni, personaggi, memoria, scenari, simulazioni (turni manuali, rotazione, regia automatica), recupero semantico ibrido con embedding locali, PDF nella base di conoscenza, export/import di personaggi e scenari, backup/restore, app desktop Electron (Linux, headless), interfaccia in 6 lingue, indicatore di disponibilità del motore. 66 test server + 20 test web; smoke E2E Playwright (17 passaggi) e smoke desktop con provider mock.
 
-Non verificato in questo ambiente: LM Studio reale (chat ed embedding testati contro un server finto compatibile), app desktop su Windows/macOS. Non implementati: installer desktop, OCR. Traduzioni fr/es/de/pt non revisionate da madrelingua. Dettagli: `README.md` § Limiti noti e `docs/architecture.md`.
+Installer desktop: generati e verificati (smoke test dell'app impacchettata) dal workflow di release su Linux, Windows e macOS.
+
+Non verificato: LM Studio reale (chat ed embedding testati contro un server finto compatibile). Non implementati: firma del codice, aggiornamento automatico, OCR. Traduzioni fr/es/de/pt non revisionate da madrelingua. Dettagli: `README.md` § Limiti noti e `docs/architecture.md`.

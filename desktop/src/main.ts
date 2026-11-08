@@ -71,12 +71,22 @@ async function runSmoke(w: BrowserWindow) {
     })()`);
     mkdirSync(smokeDir!, { recursive: true });
     writeFileSync(join(smokeDir!, 'desktop.png'), (await w.webContents.capturePage()).toPNG());
-    console.log(`PERSONA_SMOKE ${JSON.stringify({ ok: true, url: server?.url, dataDir: server?.ctx.config.dataDir, electron: process.versions.electron, ...result })}`);
+    const report = JSON.stringify({ ok: true, url: server?.url, dataDir: server?.ctx.config.dataDir, electron: process.versions.electron, ...result });
+    // Anche su file: su Windows lo stdout di un'app GUI non è sempre disponibile.
+    writeFileSync(join(smokeDir!, 'result.json'), report);
+    console.log(`PERSONA_SMOKE ${report}`);
     await server?.close();
     server = null;
     app.exit(0);
   } catch (err) {
-    console.log(`PERSONA_SMOKE ${JSON.stringify({ ok: false, error: (err as Error).message })}`);
+    const report = JSON.stringify({ ok: false, error: (err as Error).message });
+    try {
+      mkdirSync(smokeDir!, { recursive: true });
+      writeFileSync(join(smokeDir!, 'result.json'), report);
+    } catch {
+      /* ignora */
+    }
+    console.log(`PERSONA_SMOKE ${report}`);
     app.exit(1);
   }
 }
@@ -94,12 +104,14 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(async () => {
     try {
+      // Nel pacchetto installato interfaccia e migrazioni sono risorse fuori da app.asar.
+      const resources = app.isPackaged ? process.resourcesPath : here;
       server = await startPersonaServer({
         dataDir: process.env.PERSONA_DATA_DIR ?? join(app.getPath('userData'), 'data'),
         port: 0,
         host: '127.0.0.1',
-        webDistDir: join(here, 'web'),
-        config: { migrationsDir: join(here, 'drizzle'), production: true },
+        webDistDir: join(resources, 'web'),
+        config: { migrationsDir: join(resources, 'drizzle'), production: true, version: app.getVersion() },
       });
       await createWindow();
     } catch (err) {

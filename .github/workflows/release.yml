@@ -1,0 +1,144 @@
+# Installer desktop e pubblicazione della release su GitHub.
+#
+# Avvio:
+#   - push di un tag "vX.Y.Z" (deve coincidere con la versione di desktop/package.json), oppure
+#   - manuale (Actions → Release → Run workflow) indicando il tag: viene creato alla pubblicazione.
+#
+# Flusso: verifica (typecheck, test, build del frontend) → installer per Linux, Windows e macOS
+# con smoke test dell'app impacchettata su ciascun sistema → release con installer e SHA256SUMS.
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag della release (es. v0.3.0), uguale alla versione di desktop/package.json'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  verify:
+    name: Verifica
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Tag e versione coincidono
+        shell: bash
+        run: |
+          version="v$(node -p "require('./desktop/package.json').version")"
+          if [ "$version" != "$RELEASE_TAG" ]; then
+            echo "::error::Il tag $RELEASE_TAG non corrisponde alla versione di desktop/package.json ($version)"
+            exit 1
+          fi
+          if [ ! -f "docs/releases/$RELEASE_TAG.md" ]; then
+            echo "::error::Note di rilascio mancanti: docs/releases/$RELEASE_TAG.md"
+            exit 1
+          fi
+      - run: npm ci
+      - name: Typecheck, test e build
+        run: npm run check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+          if-no-files-found: error
+
+  package:
+    name: Installer ${{ matrix.platform }}
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: win
+          - os: macos-latest
+            platform: mac
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+      - name: Dipendenze dell'app desktop
+        run: npm ci --no-workspaces
+      - name: Installer
+        run: npm run dist:${{ matrix.platform }}
+        env:
+          # Nessun certificato di firma: installer non firmati (macOS: firma ad hoc).
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Smoke test dell'app impacchettata (Linux)
+        if: matrix.platform == 'linux'
+        run: xvfb-run -a node smoke.mjs --packaged smoke-shots
+      - name: Smoke test dell'app impacchettata
+        if: matrix.platform != 'linux'
+        run: node smoke.mjs --packaged smoke-shots
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.platform }}
+          path: |
+            desktop/release/*.AppImage
+            desktop/release/*.deb
+            desktop/release/*.exe
+            desktop/release/*.dmg
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-${{ matrix.platform }}
+          path: desktop/smoke-shots
+          if-no-files-found: ignore
+
+  release:
+    name: Pubblicazione
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installers-*
+          path: dist
+          merge-multiple: true
+      - name: Checksum SHA-256
+        working-directory: dist
+        run: |
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
+          name: PERSONA ${{ env.RELEASE_TAG }}
+          body_path: docs/releases/${{ env.RELEASE_TAG }}.md
+          files: dist/*
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true

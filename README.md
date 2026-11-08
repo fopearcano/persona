@@ -49,7 +49,11 @@ npm start
 
 Apri **`http://127.0.0.1:4317`**: il backend serve sia le API sia l'interfaccia.
 
-### Applicazione desktop (Electron, facoltativa)
+### Applicazione desktop (installer)
+
+Gli installer per Windows, macOS e Linux sono pubblicati nelle **[Releases](https://github.com/fopearcano/persona/releases)** (istruzioni di installazione nelle note di ciascuna release). Non sono firmati: al primo avvio Windows e macOS mostrano un avviso.
+
+### Applicazione desktop dai sorgenti (Electron)
 
 La cartella `desktop/` contiene un involucro Electron che avvia il backend dentro l'app (porta libera su `127.0.0.1`) e apre l'interfaccia in una finestra propria. È un pacchetto separato: `npm install` nella root non scarica Electron.
 
@@ -58,7 +62,15 @@ npm run desktop:install   # una sola volta: Electron e dipendenze in desktop/nod
 npm run desktop           # build del frontend + avvio dell'app desktop
 ```
 
-I dati dell'app desktop stanno nella cartella utente del sistema (`…/PERSONA/data`, oppure `PERSONA_DATA_DIR`). Verifica non interattiva: `npm run desktop:smoke` (su Linux senza display: `xvfb-run npm run desktop:smoke`). La creazione di installer (electron-builder/forge) non è ancora configurata.
+I dati dell'app desktop stanno nella cartella utente del sistema (`…/PERSONA/data`, oppure `PERSONA_DATA_DIR`). Verifica non interattiva: `npm run desktop:smoke` (su Linux senza display: `xvfb-run npm run desktop:smoke`).
+
+Installer in locale (electron-builder, risultato in `desktop/release/`), dopo `npm run build` nella root:
+
+```bash
+cd desktop && npm run dist:linux   # oppure dist:win su Windows, dist:mac su macOS
+```
+
+**Pubblicare una release**: aggiornare la versione in `desktop/package.json`, scrivere le note in `docs/releases/vX.Y.Z.md`, poi creare il tag `vX.Y.Z` (oppure avviare manualmente il workflow *Release* indicando il tag). Il workflow `.github/workflows/release.yml` esegue typecheck, test e build, crea gli installer su Linux, Windows e macOS, verifica ciascuna app impacchettata con uno smoke test e pubblica la release con i file e `SHA256SUMS.txt`.
 
 Il database viene creato in `./data/persona.db` e le migrazioni vengono applicate automaticamente all'avvio. Per cambiare cartella o porta: variabili `PERSONA_DATA_DIR`, `PERSONA_PORT` (vedi `.env.example`; un file `.env` nella root o in `server/` viene letto automaticamente).
 
@@ -145,7 +157,7 @@ Monorepo npm: `shared/` (tipi e schemi), `server/` (Fastify, SQLite, Drizzle, se
 - La qualità dell'estrazione automatica di memorie dipende dalla capacità del modello di produrre JSON valido; in caso contrario non viene creata alcuna memoria (nessuna corruzione dei dati).
 - Il conteggio dei token è una stima (circa 3,5 caratteri per token); impostare la lunghezza del contesto con margine.
 - Le traduzioni dell'interfaccia in francese, spagnolo, tedesco e portoghese non sono state riviste da madrelingua.
-- L'app desktop è verificata su Linux (Electron 45, in modalità headless con Xvfb); non è stata provata su Windows e macOS e non produce ancora installer.
+- Installer non firmati (avvisi di Windows SmartScreen e Gatekeeper su macOS) e senza aggiornamento automatico. Su Ubuntu 24.04 e successive l'AppImage può richiedere `--no-sandbox` (meglio il `.deb`).
 - PDF: viene estratto solo il testo selezionabile (nessun OCR per i documenti scansionati).
 - La regia automatica dei turni dipende dalla capacità del modello di rispondere in JSON; in caso contrario si ripiega sulla rotazione.
 - La competenza linguistica e specialistica del personaggio è simulata ed è limitata dalle reali capacità del modello scelto.
@@ -153,7 +165,7 @@ Monorepo npm: `shared/` (tipi e schemi), `server/` (Fastify, SQLite, Drizzle, se
 
 ## Roadmap
 
-- Installer desktop (electron-builder) e firma del codice.
+- Firma del codice e notarizzazione degli installer; aggiornamento automatico.
 - Indice vettoriale (es. sqlite-vec) per basi di memoria molto grandi.
 - OCR per PDF scansionati.
 - Revisione delle traduzioni da parte di madrelingua; altre lingue dell'interfaccia.

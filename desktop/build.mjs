@@ -19,8 +19,17 @@ if (!existsSync(join(webDist, 'index.html'))) {
   process.exit(1);
 }
 
+// @persona/shared viene incluito dai sorgenti TypeScript: non serve installare il monorepo.
+const sharedSource = {
+  name: 'persona-shared-source',
+  setup(b) {
+    b.onResolve({ filter: /^@persona\/shared$/ }, () => ({ path: join(root, 'shared', 'src', 'index.ts') }));
+  },
+};
+
 rmSync(out, { recursive: true, force: true });
 await build({
+  plugins: [sharedSource],
   entryPoints: [join(here, 'src', 'main.ts')],
   outfile: join(out, 'main.mjs'),
   bundle: true,
