@@ -6,6 +6,7 @@ import { userPreferences } from '../db/schema.js';
 import { nowIso, parseJson, validate } from '../lib/util.js';
 
 export const DEFAULT_PREFERENCES: Preferences = {
+  activeProjectId: null,
   uiLanguage: 'it',
   theme: 'dark',
   conversationLanguage: 'auto',

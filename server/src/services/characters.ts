@@ -11,6 +11,7 @@ import {
   characterInputSchema,
   characterStatusSchema,
   duplicateInputSchema,
+  NO_PROJECT,
   variantInputSchema,
 } from '@persona/shared';
 import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm';
@@ -27,6 +28,7 @@ import {
   modelConfigurations,
 } from '../db/schema.js';
 import { AppError, newId, notFound, nowIso, parseJson, validate } from '../lib/util.js';
+import { ensureMembership, projectIdsByCharacter } from './project-membership.js';
 
 type CharacterRow = typeof characters.$inferSelect;
 
@@ -120,6 +122,7 @@ function hydrate(db: Db, row: CharacterRow): Character {
     variantNote: row.variantNote,
     modelConfigId: row.modelConfigId,
     identityVersion: row.identityVersion,
+    projectIds: [],
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     traits: traits.map((t) => ({
@@ -148,7 +151,9 @@ function hydrate(db: Db, row: CharacterRow): Character {
 }
 
 export function getCharacter(ctx: AppContext, id: string): Character {
-  return hydrate(ctx.dbm.db, getCharacterRow(ctx, id));
+  const c = hydrate(ctx.dbm.db, getCharacterRow(ctx, id));
+  c.projectIds = projectIdsByCharacter(ctx, [id]).get(id) ?? [];
+  return c;
 }
 
 export function snapshotOf(c: Character | CharacterSnapshot): CharacterSnapshot {
@@ -173,7 +178,12 @@ export function snapshotOf(c: Character | CharacterSnapshot): CharacterSnapshot 
   };
 }
 
-export function listCharacters(ctx: AppContext, opts: { status?: string } = {}): CharacterSummary[] {
+/** `projectId`: id del progetto, NO_PROJECT per i personaggi senza progetto, undefined per tutti. */
+export function listCharacters(ctx: AppContext, opts: { status?: string; projectId?: string } = {}): CharacterSummary[] {
+  const where: string[] = [];
+  if (opts.status) where.push('c.status = @status');
+  if (opts.projectId === NO_PROJECT) where.push('NOT EXISTS (SELECT 1 FROM project_characters pc WHERE pc.character_id = c.id)');
+  else if (opts.projectId) where.push('EXISTS (SELECT 1 FROM project_characters pc WHERE pc.character_id = c.id AND pc.project_id = @projectId)');
   const rows = ctx.dbm.sqlite
     .prepare(
       `SELECT c.id, c.name, c.occupation, c.origin, c.portrait, c.status, c.parent_id AS parentId,
@@ -182,10 +192,10 @@ export function listCharacters(ctx: AppContext, opts: { status?: string } = {}):
               (SELECT count(*) FROM memories m WHERE m.character_id = c.id AND m.status != 'archived') AS memoryCount,
               (SELECT count(*) FROM conversation_participants p WHERE p.character_id = c.id) AS conversationCount
          FROM characters c
-        ${opts.status ? 'WHERE c.status = @status' : ''}
+        ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
         ORDER BY c.updated_at DESC`,
     )
-    .all(opts.status ? { status: opts.status } : {}) as Omit<CharacterSummary, 'languages' | 'expertiseDomains'>[];
+    .all({ status: opts.status, projectId: opts.projectId }) as Omit<CharacterSummary, 'languages' | 'expertiseDomains' | 'projectIds'>[];
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
   const langs = ctx.dbm.db
@@ -200,8 +210,10 @@ export function listCharacters(ctx: AppContext, opts: { status?: string } = {}):
     .where(inArray(expertise.characterId, ids))
     .orderBy(asc(expertise.sortOrder))
     .all();
+  const memberships = projectIdsByCharacter(ctx, ids);
   return rows.map((r) => ({
     ...r,
+    projectIds: memberships.get(r.id) ?? [],
     languages: langs
       .filter((l) => l.characterId === r.id)
       .map((l) => ({ code: l.code, proficiency: l.proficiency as CharacterSummary['languages'][number]['proficiency'], isNative: l.isNative })),
@@ -397,7 +409,9 @@ export function duplicateCharacter(ctx: AppContext, id: string, input: unknown):
   const src = getCharacter(ctx, id);
   const created = createCharacter(ctx, cloneInput(src, opts.name ?? `${src.name} (copia)`));
   copyMemories(ctx, src.id, created.id, opts.copyMemories, src.name);
-  return created;
+  // La copia nasce negli stessi progetti dell'originale.
+  for (const pid of src.projectIds) ensureMembership(ctx, pid, [created.id]);
+  return getCharacter(ctx, created.id);
 }
 
 /** Variante derivata: copia indipendente collegata all'originale, che resta invariato. */
@@ -409,7 +423,8 @@ export function createVariant(ctx: AppContext, id: string, input: unknown): Char
     variantNote: opts.variantNote,
   });
   copyMemories(ctx, src.id, created.id, opts.copyMemories, src.name);
-  return created;
+  for (const pid of src.projectIds) ensureMembership(ctx, pid, [created.id]);
+  return getCharacter(ctx, created.id);
 }
 
 export function listVariants(ctx: AppContext, id: string) {

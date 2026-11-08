@@ -123,9 +123,15 @@ export function getConversation(ctx: AppContext, id: string): Conversation {
 
 export function listConversations(
   ctx: AppContext,
-  q: { characterId?: string; scenarioId?: string; kind?: string; includeArchived?: boolean },
+  q: { characterId?: string; scenarioId?: string; kind?: string; includeArchived?: boolean; projectId?: string },
 ): Conversation[] {
   const conds: SQL[] = [];
+  if (q.projectId) {
+    // Sessioni e simulazioni del progetto: quelle dei suoi scenari.
+    const ids = (ctx.dbm.sqlite.prepare('SELECT id FROM scenarios WHERE project_id = ?').all(q.projectId) as { id: string }[]).map((r) => r.id);
+    if (ids.length === 0) return [];
+    conds.push(inArray(conversations.scenarioId, ids));
+  }
   if (q.kind) conds.push(eq(conversations.kind, q.kind));
   if (q.scenarioId) conds.push(eq(conversations.scenarioId, q.scenarioId));
   if (!q.includeArchived) conds.push(eq(conversations.archived, false));

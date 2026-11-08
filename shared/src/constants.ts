@@ -71,6 +71,13 @@ export const TURN_MODES = ['manual', 'round-robin', 'auto'] as const;
 export type TurnMode = (typeof TURN_MODES)[number];
 
 export const SCENARIO_STATUSES = ['active', 'archived'] as const;
+
+/** Un progetto è una storia/opera che raggruppa personaggi, scenari e simulazioni. */
+export const PROJECT_STATUSES = ['active', 'archived'] as const;
+export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
+
+/** Filtro speciale per gli elementi non assegnati ad alcun progetto. */
+export const NO_PROJECT = 'none';
 export type ScenarioStatus = (typeof SCENARIO_STATUSES)[number];
 
 /** Lingue dell'interfaccia tradotte (it = predefinita e riferimento delle chiavi). */

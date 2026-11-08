@@ -1,4 +1,5 @@
 import type { ParticipantInput, Scenario, ScenarioDetail, ScenarioInput, ScenarioSummary } from '@persona/shared';
+import { NO_PROJECT } from '@persona/shared';
 import {
   eventInputSchema,
   participantInputSchema,
@@ -6,17 +7,19 @@ import {
   relationshipInputSchema,
   scenarioInputSchema,
 } from '@persona/shared';
-import { and, asc, eq, or } from 'drizzle-orm';
+import { and, asc, eq, isNull, or, type SQL } from 'drizzle-orm';
 import type { AppContext } from '../context.js';
 import { characters, scenarioEvents, scenarioParticipants, scenarioRelationships, scenarios } from '../db/schema.js';
 import { AppError, newId, notFound, nowIso, validate } from '../lib/util.js';
 import { getCharacterRow } from './characters.js';
+import { ensureMembership, projectExists } from './project-membership.js';
 
 type ScenarioRow = typeof scenarios.$inferSelect;
 
 function toScenario(r: ScenarioRow): Scenario {
   return {
     id: r.id,
+    projectId: r.projectId,
     title: r.title,
     description: r.description,
     setting: r.setting,
@@ -90,8 +93,12 @@ export function getScenario(ctx: AppContext, id: string): ScenarioDetail {
   return { ...toScenario(row), participants, relationships, events };
 }
 
-export function listScenarios(ctx: AppContext): ScenarioSummary[] {
-  const rows = ctx.dbm.db.select().from(scenarios).orderBy(asc(scenarios.status), asc(scenarios.title)).all();
+/** `projectId`: id del progetto, NO_PROJECT per gli scenari non assegnati, undefined per tutti. */
+export function listScenarios(ctx: AppContext, q: { projectId?: string } = {}): ScenarioSummary[] {
+  let cond: SQL | undefined;
+  if (q.projectId === NO_PROJECT) cond = isNull(scenarios.projectId);
+  else if (q.projectId) cond = eq(scenarios.projectId, q.projectId);
+  const rows = ctx.dbm.db.select().from(scenarios).where(cond).orderBy(asc(scenarios.status), asc(scenarios.title)).all();
   const counts = ctx.dbm.sqlite
     .prepare(
       `SELECT s.id,
@@ -108,21 +115,52 @@ export function listScenarios(ctx: AppContext): ScenarioSummary[] {
   });
 }
 
+function assertProject(ctx: AppContext, projectId: string | null | undefined) {
+  if (projectId && !projectExists(ctx, projectId)) throw new AppError('validation', `Progetto inesistente: ${projectId}`);
+}
+
 export function createScenario(ctx: AppContext, input: ScenarioInput): ScenarioDetail {
   const data = validate(scenarioInputSchema, input);
+  assertProject(ctx, data.projectId);
   const id = newId();
   const ts = nowIso();
   ctx.dbm.db
     .insert(scenarios)
-    .values({ id, ...data, currentSituation: data.currentSituation ?? data.initialSituation, createdAt: ts, updatedAt: ts })
+    .values({
+      id,
+      ...data,
+      projectId: data.projectId ?? null,
+      currentSituation: data.currentSituation ?? data.initialSituation,
+      createdAt: ts,
+      updatedAt: ts,
+    })
     .run();
   return getScenario(ctx, id);
 }
 
+/**
+ * Aggiorna lo scenario. Spostandolo in un altro progetto, i suoi partecipanti diventano membri
+ * del progetto di destinazione (restano anche in quello di origine).
+ */
 export function updateScenario(ctx: AppContext, id: string, input: ScenarioInput): ScenarioDetail {
   getScenarioRow(ctx, id);
   const data = validate(scenarioInputSchema, input);
-  ctx.dbm.db.update(scenarios).set({ ...data, updatedAt: nowIso() }).where(eq(scenarios.id, id)).run();
+  assertProject(ctx, data.projectId);
+  const { projectId, ...rest } = data;
+  ctx.dbm.db
+    .update(scenarios)
+    .set({ ...rest, ...(projectId !== undefined ? { projectId } : {}), updatedAt: nowIso() })
+    .where(eq(scenarios.id, id))
+    .run();
+  if (projectId) {
+    const ids = ctx.dbm.db
+      .select({ id: scenarioParticipants.characterId })
+      .from(scenarioParticipants)
+      .where(eq(scenarioParticipants.scenarioId, id))
+      .all()
+      .map((r) => r.id);
+    ensureMembership(ctx, projectId, ids);
+  }
   return getScenario(ctx, id);
 }
 
@@ -151,6 +189,9 @@ export function addParticipant(ctx: AppContext, scenarioId: string, input: Parti
     .insert(scenarioParticipants)
     .values({ id: newId(), scenarioId, ...data, sortOrder: count, createdAt: nowIso() })
     .run();
+  // Chi partecipa a uno scenario fa parte del progetto (storia) dello scenario.
+  const projectId = getScenarioRow(ctx, scenarioId).projectId;
+  if (projectId) ensureMembership(ctx, projectId, [data.characterId]);
   touch(ctx, scenarioId);
   return getScenario(ctx, scenarioId);
 }

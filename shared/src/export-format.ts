@@ -155,3 +155,29 @@ export interface ScenarioExportV1 {
     messages: (Omit<ExportedConversation['messages'][number], 'isSelf'> & { characterId: string | null })[];
   })[];
 }
+
+/**
+ * Formato di salvataggio di un progetto (storia) completo: metadati, identità dei personaggi
+ * (con eventuali conversazioni del laboratorio) e scenari con sessioni e memorie contestuali.
+ * Gli scenari non ripetono le identità: i loro riferimenti puntano a `characters`.
+ */
+export const PROJECT_EXPORT_FORMAT = 'persona.project' as const;
+export const PROJECT_EXPORT_VERSION = 1 as const;
+
+export interface ProjectExportV1 {
+  format: typeof PROJECT_EXPORT_FORMAT;
+  version: typeof PROJECT_EXPORT_VERSION;
+  exportedAt: string;
+  app: { name: 'PERSONA'; version: string };
+  project: {
+    id: string;
+    name: string;
+    description: string | null;
+    status: 'active' | 'archived';
+    createdAt: string;
+    updatedAt: string;
+  };
+  characters: CharacterExportV1[];
+  /** Bundle di scenario con `characters` vuoto (le identità sono nel livello del progetto). */
+  scenarios: ScenarioExportV1[];
+}

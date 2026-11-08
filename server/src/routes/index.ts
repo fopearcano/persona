@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import {
+  projectMembershipSchema,
   characterImportOptionsSchema,
   connectionTestSchema,
   contextPreviewSchema,
@@ -24,6 +25,7 @@ import * as portability from '../services/portability.js';
 import { extractPdf } from '../services/pdf.js';
 import { getPreferences, updatePreferences } from '../services/preferences.js';
 import { coreMemories, searchScopedMemories } from '../services/retrieval.js';
+import * as projects from '../services/projects.js';
 import * as scenarioPortability from '../services/scenario-portability.js';
 import * as scenarios from '../services/scenarios.js';
 
@@ -56,6 +58,8 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext) {
   /* ---------------- Preferenze ---------------- */
   app.get('/api/preferences', async () => getPreferences(ctx));
   app.put('/api/preferences', async (req) => {
+    const activeProjectId = (req.body as { activeProjectId?: string | null } | null)?.activeProjectId;
+    if (activeProjectId) projects.getProjectRow(ctx, activeProjectId);
     const next = updatePreferences(ctx, req.body as never);
     if ((req.body as { embeddings?: unknown } | null)?.embeddings) embeddings.scheduleIndexing(ctx);
     return next;
@@ -88,9 +92,55 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get<{ Params: Params }>('/api/model-configs/:id/models', async (req) => models.listModelsFor(ctx, req.params.id));
   app.post('/api/model-configs/probe', async (req) => models.probeModels(ctx, req.body));
 
+  /* ---------------- Progetti ---------------- */
+  app.get('/api/projects', async () => projects.listProjects(ctx));
+  app.post('/api/projects', async (req, reply) => reply.code(201).send(projects.createProject(ctx, req.body as never)));
+  app.get<{ Params: Params }>('/api/projects/:id', async (req) => projects.getProject(ctx, req.params.id));
+  app.put<{ Params: Params }>('/api/projects/:id', async (req) => projects.updateProject(ctx, req.params.id, req.body as never));
+  app.delete<{ Params: Params; Querystring: Q }>('/api/projects/:id', async (req) =>
+    projects.deleteProject(ctx, req.params.id, { deleteCharacters: bool(req.query.deleteCharacters, false) }),
+  );
+  app.post<{ Params: Params }>('/api/projects/:id/characters', async (req, reply) => {
+    const { characterId } = validate(projectMembershipSchema, req.body);
+    projects.addCharacterToProject(ctx, req.params.id, characterId);
+    return reply.code(201).send(characters.getCharacter(ctx, characterId));
+  });
+  app.delete<{ Params: { id: string; characterId: string } }>('/api/projects/:id/characters/:characterId', async (req, reply) => {
+    projects.removeCharacterFromProject(ctx, req.params.id, req.params.characterId);
+    return reply.code(204).send();
+  });
+  /** Salvataggio del progetto su file (persona.project). */
+  app.get<{ Params: Params; Querystring: Q }>('/api/projects/:id/export', async (req, reply) => {
+    const data = projects.exportProject(ctx, req.params.id, {
+      conversations: bool(req.query.conversations, true),
+      sessions: bool(req.query.sessions, true),
+    });
+    const safe = data.project.name.normalize('NFKD').replace(/[^\w-]+/g, '_').slice(0, 60) || 'progetto';
+    reply.header('Content-Disposition', `attachment; filename="persona-progetto-${safe}.json"`);
+    return data;
+  });
+  app.post<{ Querystring: Q }>('/api/projects/import', async (req, reply) =>
+    reply.code(201).send(
+      projects.importProject(ctx, req.body, {
+        characters: req.query.characters === 'new' ? 'new' : 'reuse',
+        includeConversations: bool(req.query.conversations, true),
+        includeSessions: bool(req.query.sessions, true),
+      }),
+    ),
+  );
+
   /* ---------------- Personaggi ---------------- */
-  app.get<{ Querystring: Q }>('/api/characters', async (req) => characters.listCharacters(ctx, { status: req.query.status }));
-  app.post('/api/characters', async (req, reply) => reply.code(201).send(characters.createCharacter(ctx, req.body as never)));
+  app.get<{ Querystring: Q }>('/api/characters', async (req) =>
+    characters.listCharacters(ctx, { status: req.query.status, projectId: req.query.projectId }),
+  );
+  app.post('/api/characters', async (req, reply) => {
+    // projectId non fa parte dell'identità: indica solo il progetto in cui nasce il personaggio.
+    const { projectId, ...input } = (req.body ?? {}) as { projectId?: string | null };
+    if (projectId) projects.getProjectRow(ctx, projectId);
+    const created = characters.createCharacter(ctx, input as never);
+    if (projectId) projects.addCharacterToProject(ctx, projectId, created.id);
+    return reply.code(201).send(characters.getCharacter(ctx, created.id));
+  });
   app.get<{ Params: Params }>('/api/characters/:id', async (req) => characters.getCharacter(ctx, req.params.id));
   app.put<{ Params: Params }>('/api/characters/:id', async (req) => characters.updateCharacter(ctx, req.params.id, req.body as never));
   app.put<{ Params: Params }>('/api/characters/:id/model', async (req) =>
@@ -131,7 +181,14 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext) {
       includeMemories: bool(req.query.memories, true),
       includeKnowledge: bool(req.query.knowledge, true),
     });
-    return reply.code(201).send(portability.importCharacter(ctx, req.body, opts));
+    const projectId = req.query.projectId;
+    if (projectId) projects.getProjectRow(ctx, projectId);
+    const result = portability.importCharacter(ctx, req.body, opts);
+    if (projectId) {
+      projects.addCharacterToProject(ctx, projectId, result.character.id);
+      result.character = characters.getCharacter(ctx, result.character.id);
+    }
+    return reply.code(201).send(result);
   });
 
   /* ---------------- Conoscenza ---------------- */
@@ -192,6 +249,7 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext) {
       scenarioId: req.query.scenarioId,
       kind: req.query.kind,
       includeArchived: bool(req.query.archived, false),
+      projectId: req.query.projectId,
     }),
   );
   app.post('/api/conversations', async (req, reply) => {
@@ -282,7 +340,7 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext) {
   });
 
   /* ---------------- Scenari ---------------- */
-  app.get('/api/scenarios', async () => scenarios.listScenarios(ctx));
+  app.get<{ Querystring: Q }>('/api/scenarios', async (req) => scenarios.listScenarios(ctx, { projectId: req.query.projectId }));
   app.get<{ Params: Params; Querystring: Q }>('/api/scenarios/:id/export', async (req, reply) => {
     const data = scenarioPortability.exportScenario(ctx, req.params.id, { sessions: bool(req.query.sessions, true) });
     const safe = data.scenario.title.normalize('NFKD').replace(/[^\w-]+/g, '_').slice(0, 60) || 'scenario';
@@ -291,10 +349,12 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext) {
   });
   app.post<{ Querystring: Q }>('/api/scenarios/import', async (req, reply) =>
     reply.code(201).send(
-      scenarioPortability.importScenario(ctx, req.body, {
-        characters: req.query.characters === 'new' ? 'new' : 'reuse',
-        includeSessions: bool(req.query.sessions, true),
-      }),
+      scenarioPortability.importScenario(
+        ctx,
+        req.body,
+        { characters: req.query.characters === 'new' ? 'new' : 'reuse', includeSessions: bool(req.query.sessions, true) },
+        { projectId: req.query.projectId || null },
+      ),
     ),
   );
   app.post('/api/scenarios', async (req, reply) => reply.code(201).send(scenarios.createScenario(ctx, req.body as never)));

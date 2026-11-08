@@ -11,6 +11,7 @@ import type {
   MessageRole,
   MessageStatus,
   ProficiencyLevel,
+  ProjectStatus,
   ProviderType,
   ScenarioStatus,
   Theme,
@@ -94,6 +95,8 @@ export interface Character extends CharacterProfileFields {
   variantNote: string | null;
   modelConfigId: string | null;
   identityVersion: number;
+  /** Progetti di cui il personaggio fa parte (appartenenza, non identità). */
+  projectIds: string[];
   createdAt: string;
   updatedAt: string;
   traits: CharacterTrait[];
@@ -115,8 +118,30 @@ export interface CharacterSummary {
   expertiseDomains: string[];
   memoryCount: number;
   conversationCount: number;
+  /** Progetti (storie) di cui il personaggio fa parte: la stessa identità può stare in più progetti. */
+  projectIds: string[];
   updatedAt: string;
   createdAt: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Progetti                                                            */
+/* ------------------------------------------------------------------ */
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string | null;
+  status: ProjectStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectSummary extends Project {
+  characterCount: number;
+  scenarioCount: number;
+  simulationCount: number;
+  lastActivityAt: string;
 }
 
 export interface IdentityRevision {
@@ -384,6 +409,8 @@ export interface ScenarioEvent {
 
 export interface Scenario {
   id: string;
+  /** Progetto (storia) a cui appartiene lo scenario; null = non assegnato. */
+  projectId: string | null;
   title: string;
   description: string | null;
   setting: string | null;
@@ -487,6 +514,8 @@ export interface EmbeddingPreferences {
 }
 
 export interface Preferences {
+  /** Progetto attivo nell'interfaccia (null = tutti i progetti). */
+  activeProjectId: string | null;
   uiLanguage: string;
   theme: Theme;
   conversationLanguage: string;

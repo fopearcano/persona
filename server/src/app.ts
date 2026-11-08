@@ -9,6 +9,7 @@ import { LlmError } from './llm/types.js';
 import { AppError } from './lib/util.js';
 import { registerRoutes } from './routes/index.js';
 import { seedModelConfigs } from './services/model-configs.js';
+import { ensureDefaultProject } from './services/projects.js';
 
 export interface BuildOptions {
   config?: Partial<AppConfig>;
@@ -96,7 +97,11 @@ export async function buildApp(opts: BuildOptions = {}): Promise<{ app: FastifyI
     app.setNotFoundHandler((_req, reply) => reply.code(404).send({ error: { code: 'not_found', message: 'Not found' } }));
   }
 
-  if (opts.seed !== false) seedModelConfigs(ctx);
+  if (opts.seed !== false) {
+    seedModelConfigs(ctx);
+    // Una tantum: primo progetto, con i personaggi e gli scenari creati prima dei progetti.
+    ensureDefaultProject(ctx);
+  }
 
   app.addHook('onClose', async () => {
     dbm.close();

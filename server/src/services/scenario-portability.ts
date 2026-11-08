@@ -29,6 +29,7 @@ import {
 } from '../db/schema.js';
 import { AppError, newId, nowIso, validate } from '../lib/util.js';
 import { scheduleIndexing } from './embeddings.js';
+import { ensureMembership, projectExists } from './project-membership.js';
 import { listMemories } from './memory.js';
 import { exportCharacter, importCharacter } from './portability.js';
 import { getScenario } from './scenarios.js';
@@ -222,8 +223,19 @@ export interface ScenarioImportResult {
  * vengono riutilizzati (opzione `reuse`, la loro identità non viene modificata);
  * gli altri sono importati come nuove identità.
  */
-export function importScenario(ctx: AppContext, payload: unknown, options: unknown): ScenarioImportResult {
+export function importScenario(
+  ctx: AppContext,
+  payload: unknown,
+  options: unknown,
+  ext: {
+    /** Corrispondenza id originale → id locale già risolta (importazione di un progetto). */
+    idMap?: Map<string, string>;
+    /** Progetto di destinazione dello scenario importato. */
+    projectId?: string | null;
+  } = {},
+): ScenarioImportResult {
   const opts = validate(scenarioImportOptionsSchema, options);
+  if (ext.projectId && !projectExists(ctx, ext.projectId)) throw new AppError('validation', `Progetto inesistente: ${ext.projectId}`);
   let data: z.output<typeof bundleSchema>;
   try {
     data = bundleSchema.parse(payload);
@@ -231,7 +243,7 @@ export function importScenario(ctx: AppContext, payload: unknown, options: unkno
     throw new AppError('invalid_import', `File di scenario non valido: ${(err as Error).message.slice(0, 500)}`, 400);
   }
   const scenarioFields = validate(scenarioInputSchema, data.scenario);
-  const idMap = new Map<string, string>();
+  const idMap = ext.idMap ?? new Map<string, string>();
   const result: ScenarioImportResult = {
     scenario: null as unknown as ScenarioDetail,
     characters: { reused: 0, imported: 0 },
@@ -239,7 +251,7 @@ export function importScenario(ctx: AppContext, payload: unknown, options: unkno
   };
 
   const existing = new Set(
-    data.characters.length
+    data.characters.length && !ext.idMap
       ? ctx.dbm.db
           .select({ id: characters.id })
           .from(characters)
@@ -248,7 +260,7 @@ export function importScenario(ctx: AppContext, payload: unknown, options: unkno
           .map((r) => r.id)
       : [],
   );
-  for (const ch of data.characters) {
+  for (const ch of ext.idMap ? [] : data.characters) {
     const oldId = ch.character.id;
     if (opts.characters === 'reuse' && existing.has(oldId)) {
       idMap.set(oldId, oldId);
@@ -266,7 +278,14 @@ export function importScenario(ctx: AppContext, payload: unknown, options: unkno
   const convMap = new Map<string, string>();
   ctx.dbm.db.transaction((tx) => {
     tx.insert(scenarios)
-      .values({ id: scenarioId, ...scenarioFields, status: scenarioFields.status as Scenario['status'], createdAt: ts, updatedAt: ts })
+      .values({
+        id: scenarioId,
+        ...scenarioFields,
+        projectId: ext.projectId ?? null,
+        status: scenarioFields.status as Scenario['status'],
+        createdAt: ts,
+        updatedAt: ts,
+      })
       .run();
     data.participants.forEach((p, i) => {
       const cid = mapChar(p.characterId);
@@ -382,6 +401,9 @@ export function importScenario(ctx: AppContext, payload: unknown, options: unkno
       result.imported.memories++;
     }
   });
+  if (ext.projectId) {
+    ensureMembership(ctx, ext.projectId, data.participants.map((p) => mapChar(p.characterId)).filter((x): x is string => !!x));
+  }
   scheduleIndexing(ctx);
   result.scenario = getScenario(ctx, scenarioId);
   return result;

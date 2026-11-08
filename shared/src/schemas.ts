@@ -10,6 +10,7 @@ import {
   MEMORY_STATUSES,
   PROFICIENCY_LEVELS,
   PROVIDER_TYPES,
+  PROJECT_STATUSES,
   SCENARIO_STATUSES,
   THEMES,
   TRAIT_CATEGORIES,
@@ -114,6 +115,24 @@ export type CharacterInput = z.input<typeof characterInputSchema>;
 export type CharacterInputParsed = z.output<typeof characterInputSchema>;
 
 export const characterStatusSchema = z.object({ status: z.enum(CHARACTER_STATUSES) });
+
+/* ---------------- Progetti ---------------- */
+
+export const projectInputSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  description: optText(5000),
+  status: z.enum(PROJECT_STATUSES).default('active'),
+});
+export type ProjectInput = z.input<typeof projectInputSchema>;
+
+export const projectMembershipSchema = z.object({ characterId: z.string().min(1) });
+
+export const projectImportOptionsSchema = z.object({
+  /** reuse = riusa i personaggi con lo stesso id già presenti; new = importa sempre nuove identità. */
+  characters: z.enum(['reuse', 'new']).default('reuse'),
+  includeConversations: z.boolean().default(true),
+  includeSessions: z.boolean().default(true),
+});
 
 export const variantInputSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
@@ -286,6 +305,8 @@ export const scenarioInputSchema = z.object({
   knowledge: optText(200000),
   language: languageCodeSchema.nullish().transform((v) => v ?? null),
   status: z.enum(SCENARIO_STATUSES).default('active'),
+  /** undefined = invariato (in modifica); null = nessun progetto. */
+  projectId: z.string().min(1).nullable().optional(),
 });
 export type ScenarioInput = z.input<typeof scenarioInputSchema>;
 
@@ -340,6 +361,7 @@ export const connectionTestSchema = z.object({
 });
 
 export const preferencesUpdateSchema = z.object({
+  activeProjectId: z.string().min(1).nullable().optional(),
   uiLanguage: languageCodeSchema.optional(),
   theme: z.enum(THEMES).optional(),
   conversationLanguage: conversationLanguageSchema.optional(),

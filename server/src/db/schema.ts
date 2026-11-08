@@ -223,24 +223,66 @@ export const memorySources = sqliteTable(
 );
 
 /* ------------------------------------------------------------------ */
-/* Ambienti: scenari                                                   */
+/* Progetti (storie)                                                   */
 /* ------------------------------------------------------------------ */
 
-export const scenarios = sqliteTable('scenarios', {
+/** Un progetto raggruppa personaggi, scenari e simulazioni di una stessa storia/opera. */
+export const projects = sqliteTable('projects', {
   id: text('id').primaryKey(),
-  title: text('title').notNull(),
+  name: text('name').notNull(),
   description: text('description'),
-  setting: text('setting'),
-  timeline: text('timeline'),
-  environment: text('environment'),
-  initialSituation: text('initial_situation'),
-  currentSituation: text('current_situation'),
-  knowledge: text('knowledge'),
-  language: text('language'),
   status: text('status').notNull().default('active'),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
+
+/**
+ * Appartenenza dei personaggi ai progetti (molti-a-molti): la stessa identità può partecipare
+ * a più storie senza essere duplicata. Eliminare un progetto non elimina i personaggi.
+ */
+export const projectCharacters = sqliteTable(
+  'project_characters',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    characterId: text('character_id')
+      .notNull()
+      .references(() => characters.id, { onDelete: 'cascade' }),
+    addedAt: text('added_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('project_characters_unique').on(t.projectId, t.characterId),
+    index('project_characters_character_idx').on(t.characterId),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
+/* Ambienti: scenari                                                   */
+/* ------------------------------------------------------------------ */
+
+export const scenarios = sqliteTable(
+  'scenarios',
+  {
+    id: text('id').primaryKey(),
+    /** Progetto di appartenenza: eliminando il progetto si eliminano i suoi scenari (non i personaggi). */
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    description: text('description'),
+    setting: text('setting'),
+    timeline: text('timeline'),
+    environment: text('environment'),
+    initialSituation: text('initial_situation'),
+    currentSituation: text('current_situation'),
+    knowledge: text('knowledge'),
+    language: text('language'),
+    status: text('status').notNull().default('active'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index('scenarios_project_idx').on(t.projectId)],
+);
 
 export const scenarioParticipants = sqliteTable(
   'scenario_participants',
