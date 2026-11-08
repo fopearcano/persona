@@ -19,3 +19,4 @@ playwright-report/
 desktop/release/
 desktop/smoke-shots/
 desktop/electron-zips/
+desktop/.eb-cache/

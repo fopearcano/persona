@@ -28,7 +28,7 @@ async function sha256(file) {
   return hash.digest('hex');
 }
 
-const ATTEMPTS = 8;
+const ATTEMPTS = 25;
 for (const target of targets) {
   const name = `electron-v${version}-${target}.zip`;
   const expected = checksums[name];
@@ -53,7 +53,7 @@ for (const target of targets) {
     } catch (err) {
       rmSync(tmp, { force: true });
       if (attempt >= ATTEMPTS) throw new Error(`${name}: download non riuscito dopo ${attempt} tentativi: ${err.message}`);
-      const wait = Math.min(60, 5 * attempt);
+      const wait = Math.min(45, 5 * attempt);
       console.warn(`${name}: tentativo ${attempt} non riuscito (${err.message}); nuovo tentativo tra ${wait} s`);
       await new Promise((r) => setTimeout(r, wait * 1000));
     }
