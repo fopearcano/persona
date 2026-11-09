@@ -276,14 +276,21 @@
     "talk": "Dialoguer",
     "createVariant": "Créer une variante",
     "deleteConfirm": "Supprimer « {{name}} » avec tous ses souvenirs et conversations ? Cette action est irréversible.",
-    "importDone": "« {{name}} » importé : {{memories}} souvenirs, {{conversations}} conversations, {{knowledge}} sources.",
+    "importDone": "« {{name}} » importé : {{memories}} souvenirs, {{conversations}} conversations, {{knowledge}} sources, {{revisions}} versions précédentes.",
     "importSkipped": "Non importés : {{memories}} souvenirs contextuels et {{sessions}} sessions de scénario (scénario absent).",
     "exportTitle": "Exporter l'identité",
     "exportConversations": "Inclure les conversations du laboratoire",
     "exportContextual": "Inclure les souvenirs et sessions de scénario",
     "exportKnowledge": "Inclure la base de connaissances",
     "identityVersion": "identité v{{version}}",
-    "duplicated": "Personnage dupliqué"
+    "duplicated": "Personnage dupliqué",
+    "importTitle": "Importer un personnage",
+    "importHelp": "Le personnage est importé comme nouvelle identité, avec son historique : les données existantes ne sont jamais écrasées.",
+    "importMemories": "Inclure les souvenirs",
+    "importConversations": "Inclure les conversations du laboratoire",
+    "importKnowledge": "Inclure la base de connaissances",
+    "importIntoProject": "Le personnage sera ajouté au projet « {{name}} ».",
+    "exportHelp": "Le fichier contient l'identité avec son historique, les souvenirs personnels et, si sélectionnés, les conversations et la base de connaissances."
   },
   "editor": {
     "newTitle": "Nouveau personnage",
@@ -776,5 +783,12 @@
     "embeddingsStatus": "{{mem}}/{{memTotal}} souvenirs et {{chunks}}/{{chunksTotal}} fragments de connaissances indexés",
     "embeddingsRunning": "Indexation en cours…",
     "embeddingsLastError": "Dernière erreur : {{error}}"
+  },
+  "importFile": {
+    "isCharacter": "Ce fichier contient un personnage : importez-le depuis Personnages → Importer.",
+    "isScenario": "Ce fichier contient un scénario : importez-le depuis Scénarios → Importer un scénario.",
+    "isProject": "Ce fichier contient un projet : ouvrez-le depuis Projets → Ouvrir depuis un fichier.",
+    "notPersona": "Ce fichier n'est pas un export de PERSONA.",
+    "newerVersion": "Ce fichier a été créé par une version plus récente de PERSONA (format v{{version}}, pris en charge jusqu'à v{{supported}}). Mettez l'application à jour pour l'ouvrir."
   }
 }

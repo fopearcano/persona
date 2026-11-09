@@ -39,6 +39,9 @@ export function CharactersPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [exporting, setExporting] = useState<CharacterSummary | null>(null);
   const [exportOpts, setExportOpts] = useState({ conversations: true, contextual: false, knowledge: true });
+  const [importOpen, setImportOpen] = useState(false);
+  const [importOpts, setImportOpts] = useState({ memories: true, conversations: true, knowledge: true });
+  const [importing, setImporting] = useState(false);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -59,13 +62,21 @@ export function CharactersPage() {
   };
 
   const onImport = async (file: File) => {
+    setImporting(true);
     try {
       const json = JSON.parse(await file.text()) as CharacterExportV1;
+      const p = new URLSearchParams({
+        memories: importOpts.memories ? '1' : '0',
+        conversations: importOpts.conversations ? '1' : '0',
+        knowledge: importOpts.knowledge ? '1' : '0',
+      });
+      if (projectId) p.set('projectId', projectId);
       const res = await api.post<{
         character: { id: string; name: string };
-        imported: { memories: number; conversations: number; knowledge: number };
+        imported: { memories: number; conversations: number; knowledge: number; revisions: number };
         skipped: { contextualMemories: number; scenarioConversations: number };
-      }>(`/api/characters/import${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`, json);
+      }>(`/api/characters/import?${p}`, json);
+      setImportOpen(false);
       toast(t('characters.importDone', { name: res.character.name, ...res.imported }), 'success');
       if (res.skipped.contextualMemories || res.skipped.scenarioConversations) {
         toast(t('characters.importSkipped', { memories: res.skipped.contextualMemories, sessions: res.skipped.scenarioConversations }));
@@ -73,6 +84,8 @@ export function CharactersPage() {
       await invalidate('characters', 'projects');
     } catch (err) {
       toast(err instanceof SyntaxError ? t('errors.invalid_import') : errorText(err), 'error');
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -83,18 +96,7 @@ export function CharactersPage() {
         subtitle={t('characters.subtitle')}
         actions={
           <>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="application/json,.json"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void onImport(f);
-                e.target.value = '';
-              }}
-            />
-            <Button icon={<Upload className="size-4" />} onClick={() => fileRef.current?.click()}>
+            <Button icon={<Upload className="size-4" />} onClick={() => setImportOpen(true)}>
               {t('characters.import')}
             </Button>
             {project && (
@@ -232,8 +234,39 @@ export function CharactersPage() {
         </ul>
       </div>
       {project && <AddExistingModal open={adding} onClose={() => setAdding(false)} projectId={project.id} projectNames={projectNames} />}
+      <Modal open={importOpen} onClose={() => setImportOpen(false)} title={t('characters.importTitle')}>
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-muted">{t('characters.importHelp')}</p>
+          <Checkbox label={t('characters.importMemories')} checked={importOpts.memories} onChange={(v) => setImportOpts({ ...importOpts, memories: v })} />
+          <Checkbox
+            label={t('characters.importConversations')}
+            checked={importOpts.conversations}
+            onChange={(v) => setImportOpts({ ...importOpts, conversations: v })}
+          />
+          <Checkbox label={t('characters.importKnowledge')} checked={importOpts.knowledge} onChange={(v) => setImportOpts({ ...importOpts, knowledge: v })} />
+          {project && <p className="text-xs text-muted">{t('characters.importIntoProject', { name: project.name })}</p>}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (f) void onImport(f);
+            }}
+          />
+          <div className="flex justify-end gap-2">
+            <Button onClick={() => setImportOpen(false)}>{t('common.cancel')}</Button>
+            <Button variant="primary" icon={<Upload className="size-4" />} loading={importing} onClick={() => fileRef.current?.click()}>
+              {t('common.import')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
       <Modal open={!!exporting} onClose={() => setExporting(null)} title={`${t('characters.exportTitle')} — ${exporting?.name ?? ''}`}>
         <div className="flex flex-col gap-3">
+          <p className="text-sm text-muted">{t('characters.exportHelp')}</p>
           <Checkbox label={t('characters.exportConversations')} checked={exportOpts.conversations} onChange={(v) => setExportOpts({ ...exportOpts, conversations: v })} />
           <Checkbox label={t('characters.exportKnowledge')} checked={exportOpts.knowledge} onChange={(v) => setExportOpts({ ...exportOpts, knowledge: v })} />
           <Checkbox label={t('characters.exportContextual')} checked={exportOpts.contextual} onChange={(v) => setExportOpts({ ...exportOpts, contextual: v })} />

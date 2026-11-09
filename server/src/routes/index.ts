@@ -10,6 +10,7 @@ import {
 } from '@persona/shared';
 import { createReadStream } from 'node:fs';
 import type { AppContext } from '../context.js';
+import { attachmentHeader } from '../lib/import-check.js';
 import { streamResponse } from '../lib/sse.js';
 import { AppError, validate } from '../lib/util.js';
 import * as characters from '../services/characters.js';
@@ -115,8 +116,7 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext) {
       conversations: bool(req.query.conversations, true),
       sessions: bool(req.query.sessions, true),
     });
-    const safe = data.project.name.normalize('NFKD').replace(/[^\w-]+/g, '_').slice(0, 60) || 'progetto';
-    reply.header('Content-Disposition', `attachment; filename="persona-progetto-${safe}.json"`);
+    reply.header('Content-Disposition', attachmentHeader('persona-progetto', data.project.name, 'progetto'));
     return data;
   });
   app.post<{ Querystring: Q }>('/api/projects/import', async (req, reply) =>
@@ -171,8 +171,7 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext) {
       contextual: bool(req.query.contextual, false),
       knowledge: bool(req.query.knowledge, true),
     });
-    const safe = data.character.name.normalize('NFKD').replace(/[^\w-]+/g, '_').slice(0, 60) || 'character';
-    reply.header('Content-Disposition', `attachment; filename="persona-${safe}.json"`);
+    reply.header('Content-Disposition', attachmentHeader('persona', data.character.name, 'personaggio'));
     return data;
   });
   app.post<{ Querystring: Q }>('/api/characters/import', async (req, reply) => {
@@ -343,8 +342,7 @@ export async function registerRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get<{ Querystring: Q }>('/api/scenarios', async (req) => scenarios.listScenarios(ctx, { projectId: req.query.projectId }));
   app.get<{ Params: Params; Querystring: Q }>('/api/scenarios/:id/export', async (req, reply) => {
     const data = scenarioPortability.exportScenario(ctx, req.params.id, { sessions: bool(req.query.sessions, true) });
-    const safe = data.scenario.title.normalize('NFKD').replace(/[^\w-]+/g, '_').slice(0, 60) || 'scenario';
-    reply.header('Content-Disposition', `attachment; filename="persona-scenario-${safe}.json"`);
+    reply.header('Content-Disposition', attachmentHeader('persona-scenario', data.scenario.title, 'scenario'));
     return data;
   });
   app.post<{ Querystring: Q }>('/api/scenarios/import', async (req, reply) =>

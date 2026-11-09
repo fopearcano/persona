@@ -276,14 +276,21 @@
     "talk": "Dialoga",
     "createVariant": "Crea variante",
     "deleteConfirm": "Eliminare «{{name}}» con tutte le memorie e le conversazioni? L'operazione non è reversibile.",
-    "importDone": "Importato «{{name}}»: {{memories}} memorie, {{conversations}} conversazioni, {{knowledge}} fonti.",
+    "importDone": "Importato «{{name}}»: {{memories}} memorie, {{conversations}} conversazioni, {{knowledge}} fonti, {{revisions}} versioni precedenti.",
     "importSkipped": "Non importate: {{memories}} memorie contestuali e {{sessions}} sessioni di scenario (scenario assente).",
     "exportTitle": "Esporta identità",
     "exportConversations": "Includi conversazioni del laboratorio",
     "exportContextual": "Includi memorie e sessioni di scenario",
     "exportKnowledge": "Includi la base di conoscenza",
     "identityVersion": "identità v{{version}}",
-    "duplicated": "Personaggio duplicato"
+    "duplicated": "Personaggio duplicato",
+    "importTitle": "Importa un personaggio",
+    "importHelp": "Il personaggio viene importato come nuova identità, con la sua cronologia: i dati già presenti non vengono mai sovrascritti.",
+    "importMemories": "Includi le memorie",
+    "importConversations": "Includi le conversazioni del laboratorio",
+    "importKnowledge": "Includi la base di conoscenza",
+    "importIntoProject": "Il personaggio verrà aggiunto al progetto «{{name}}».",
+    "exportHelp": "Il file contiene l'identità con la sua cronologia, le memorie personali e, se scelte, conversazioni e base di conoscenza."
   },
   "editor": {
     "newTitle": "Nuovo personaggio",
@@ -776,5 +783,12 @@
     "embeddingsStatus": "Indicizzate {{mem}}/{{memTotal}} memorie e {{chunks}}/{{chunksTotal}} frammenti di conoscenza",
     "embeddingsRunning": "Indicizzazione in corso…",
     "embeddingsLastError": "Ultimo errore: {{error}}"
+  },
+  "importFile": {
+    "isCharacter": "Questo file contiene un personaggio: importalo da Personaggi → Importa.",
+    "isScenario": "Questo file contiene uno scenario: importalo da Scenari → Importa scenario.",
+    "isProject": "Questo file contiene un progetto: aprilo da Progetti → Apri da file.",
+    "notPersona": "Il file non è un'esportazione di PERSONA.",
+    "newerVersion": "Il file è stato creato da una versione più recente di PERSONA (formato v{{version}}, supportato fino a v{{supported}}). Aggiorna l'applicazione per aprirlo."
   }
 }

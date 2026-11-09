@@ -27,10 +27,11 @@ import {
   scenarioRelationships,
   scenarios,
 } from '../db/schema.js';
+import { assertPersonaFile } from '../lib/import-check.js';
 import { AppError, newId, nowIso, validate } from '../lib/util.js';
 import { scheduleIndexing } from './embeddings.js';
 import { ensureMembership, projectExists } from './project-membership.js';
-import { listMemories } from './memory.js';
+import { listAllMemories } from './memory.js';
 import { exportCharacter, importCharacter } from './portability.js';
 import { getScenario } from './scenarios.js';
 
@@ -39,7 +40,7 @@ export function exportScenario(ctx: AppContext, id: string, opts: { sessions: bo
   const charExports = s.participants.map((p) =>
     exportCharacter(ctx, p.characterId, { conversations: false, contextual: false, knowledge: true }),
   );
-  const mems = listMemories(ctx, { scenarioId: id, limit: 1000 }).map((m) => ({
+  const mems = listAllMemories(ctx, { scenarioId: id }).map((m) => ({
     id: m.id,
     characterId: m.characterId,
     category: m.category,
@@ -236,12 +237,23 @@ export function importScenario(
 ): ScenarioImportResult {
   const opts = validate(scenarioImportOptionsSchema, options);
   if (ext.projectId && !projectExists(ctx, ext.projectId)) throw new AppError('validation', `Progetto inesistente: ${ext.projectId}`);
+  assertPersonaFile(payload, SCENARIO_EXPORT_FORMAT, SCENARIO_EXPORT_VERSION);
   let data: z.output<typeof bundleSchema>;
   try {
     data = bundleSchema.parse(payload);
   } catch (err) {
-    throw new AppError('invalid_import', `File di scenario non valido: ${(err as Error).message.slice(0, 500)}`, 400);
+    throw new AppError('invalid_import', `File di scenario non valido: ${(err as Error).message.slice(0, 500)}`, 400, { reason: 'invalid' });
   }
+  // Tutto o niente: personaggi, scenario e sessioni in un'unica transazione.
+  return ctx.dbm.sqlite.transaction(() => writeScenarioImport(ctx, data, opts, ext))();
+}
+
+function writeScenarioImport(
+  ctx: AppContext,
+  data: z.output<typeof bundleSchema>,
+  opts: z.output<typeof scenarioImportOptionsSchema>,
+  ext: { idMap?: Map<string, string>; projectId?: string | null },
+): ScenarioImportResult {
   const scenarioFields = validate(scenarioInputSchema, data.scenario);
   const idMap = ext.idMap ?? new Map<string, string>();
   const result: ScenarioImportResult = {

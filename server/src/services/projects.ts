@@ -20,6 +20,7 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
 import { characters, projectCharacters, projects, scenarioParticipants, scenarios, userPreferences } from '../db/schema.js';
+import { assertPersonaFile } from '../lib/import-check.js';
 import { AppError, newId, notFound, nowIso, validate } from '../lib/util.js';
 import { deleteCharacter, getCharacterRow } from './characters.js';
 import { exportCharacter, importCharacter } from './portability.js';
@@ -240,7 +241,6 @@ export interface ProjectImportResult {
   imported: { scenarios: number; sessions: number; memories: number };
 }
 
-/** Apre un progetto salvato su file come NUOVO progetto; non sovrascrive mai dati esistenti. */
 /** Nome libero per un progetto aperto da file: "Nome", altrimenti "Nome (2)", "Nome (3)", … */
 function availableProjectName(ctx: AppContext, name: string): string {
   const taken = new Set(ctx.dbm.db.select({ name: projects.name }).from(projects).all().map((r) => r.name));
@@ -250,13 +250,15 @@ function availableProjectName(ctx: AppContext, name: string): string {
   return `${name} (${n})`;
 }
 
+/** Apre un progetto salvato su file come NUOVO progetto; non sovrascrive mai dati esistenti. */
 export function importProject(ctx: AppContext, payload: unknown, options: unknown): ProjectImportResult {
   const opts = validate(projectImportOptionsSchema, options);
+  assertPersonaFile(payload, PROJECT_EXPORT_FORMAT, PROJECT_EXPORT_VERSION);
   let data: z.output<typeof projectBundleSchema>;
   try {
     data = projectBundleSchema.parse(payload);
   } catch (err) {
-    throw new AppError('invalid_import', `File di progetto non valido: ${(err as Error).message.slice(0, 500)}`, 400);
+    throw new AppError('invalid_import', `File di progetto non valido: ${(err as Error).message.slice(0, 500)}`, 400, { reason: 'invalid' });
   }
   const result: ProjectImportResult = {
     project: null as unknown as Project,

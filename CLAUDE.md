@@ -45,6 +45,7 @@ identità → recupero memorie (retrieval.ts) → assemblaggio contesto (context
 - L'analisi esterna (`mode='analysis'`, `role='analysis'`) non è parlato del personaggio ed è esclusa dalla cronologia in-personaggio.
 - Tutto il materiale recuperato va nei blocchi `<data>` (prompts.ts `dataBlock`/`escapeData`) ed è trattato come dato non attendibile.
 - Le chiavi API restano sul backend: `toModelConfigDto` espone solo `hasApiKey`.
+- Import/export (`persona.character`/`scenario`/`project`): l'importazione crea sempre nuove entità (mai sovrascritture), è atomica (`ctx.dbm.sqlite.transaction`, annidabile) e passa da `assertPersonaFile` (lib/import-check.ts: `details.reason` = wrong_format | not_persona | newer_version | invalid). Le esportazioni non troncano mai (`listAllMemories`, niente limiti di pagina). Campi nuovi nei formati: facoltativi e compatibili, senza cambiare `version`.
 
 ## Requisiti multilingua
 
@@ -89,7 +90,7 @@ Variabili: `PERSONA_DATA_DIR` (default `./data`), `PERSONA_PORT` (4317), `PERSON
 
 ## Stato attuale (v0.3.0 + progetti)
 
-Implementato e testato: fasi 1–6 — fondazioni, personaggi, memoria, scenari, simulazioni (turni manuali, rotazione, regia automatica), recupero semantico ibrido con embedding locali, PDF nella base di conoscenza, export/import di personaggi e scenari, backup/restore, app desktop Electron (Linux, headless), interfaccia in 6 lingue, indicatore di disponibilità del motore. Progetti (storie): divisione di personaggi/scenari/simulazioni per progetto, progetto attivo, salvataggio/apertura su file (`persona.project`), migrazione automatica dei dati esistenti in un progetto predefinito. 75 test server + 20 test web; smoke E2E Playwright (21 passaggi) e smoke desktop con provider mock.
+Implementato e testato: fasi 1–6 — fondazioni, personaggi, memoria, scenari, simulazioni (turni manuali, rotazione, regia automatica), recupero semantico ibrido con embedding locali, PDF nella base di conoscenza, export/import di personaggi e scenari, backup/restore, app desktop Electron (Linux, headless), interfaccia in 6 lingue, indicatore di disponibilità del motore. Progetti (storie): divisione di personaggi/scenari/simulazioni per progetto, progetto attivo, salvataggio/apertura su file (`persona.project`), migrazione automatica dei dati esistenti in un progetto predefinito. Import/export dei personaggi con cronologia dell'identità, opzioni di importazione e messaggi chiari per file del tipo sbagliato. 81 test server + 20 test web; smoke E2E Playwright (23 passaggi) e smoke desktop con provider mock.
 
 Installer desktop: le release pubblicano l'installer Windows, generato e verificato (smoke test dell'app impacchettata) dal workflow di release.
 

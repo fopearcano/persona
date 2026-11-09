@@ -1,6 +1,8 @@
 # Formato di esportazione dei personaggi (`persona.character`, versione 1)
 
-File JSON in UTF-8, prodotto da `GET /api/characters/:id/export` e accettato da `POST /api/characters/import`. Le definizioni TypeScript di riferimento sono in [`shared/src/export-format.ts`](../shared/src/export-format.ts).
+File JSON in UTF-8, prodotto da `GET /api/characters/:id/export` (interfaccia: **Personaggi → Esporta** sulla scheda del personaggio) e accettato da `POST /api/characters/import` (**Personaggi → Importa**). Le definizioni TypeScript di riferimento sono in [`shared/src/export-format.ts`](../shared/src/export-format.ts).
+
+Il nome del file scaricato è `persona-<nome>.json`; per i nomi con caratteri non latini l'intestazione `Content-Disposition` fornisce il nome UTF-8 (`filename*`) e un nome ASCII di ripiego.
 
 ## Parametri di esportazione
 
@@ -9,6 +11,8 @@ File JSON in UTF-8, prodotto da `GET /api/characters/:id/export` e accettato da 
 | `conversations=1` | sì | Include le conversazioni del Laboratorio con messaggi e riassunti |
 | `knowledge=1` | sì | Include la base di conoscenza (testo completo dei documenti) |
 | `contextual=1` | no | Include memorie contestuali e sessioni di scenario/simulazione |
+
+Identità, cronologia dell'identità e **tutte** le memorie personali sono sempre incluse, senza limiti di numero.
 
 ## Struttura
 
@@ -34,8 +38,14 @@ File JSON in UTF-8, prodotto da `GET /api/characters/:id/export` e accettato da 
     "languages": [ { "code": "ru", "proficiency": "native|fluent|advanced|intermediate|basic", "isNative": true, "notes": null, "sortOrder": 0 } ],
     "expertise": [ { "domain": "Cosmologia", "level": "foundational|competent|expert|leading", "description": "…", "subtopics": ["…"], "sortOrder": 0 } ],
     "identityVersion": 3, "parentId": null, "variantNote": null,
+    "status": "active|archived",     // facoltativo (assente nei file meno recenti = active)
     "createdAt": "…", "updatedAt": "…"
   },
+  // Facoltativo (assente nei file meno recenti): le versioni precedenti a identityVersion,
+  // con lo stesso contenuto di "character" (profilo, tratti, lingue, competenze).
+  "identityRevisions": [
+    { "version": 1, "reason": "…" | null, "createdAt": "…", "snapshot": { "name": "…", "traits": [], "languages": [], "expertise": [] } }
+  ],
   "memories": [
     {
       "id": "…",
@@ -76,16 +86,25 @@ File JSON in UTF-8, prodotto da `GET /api/characters/:id/export` e accettato da 
 ## Regole di importazione
 
 - Viene sempre creata una **nuova** identità con nuovi identificativi; nessun dato esistente viene sovrascritto. Il collegamento a un personaggio genitore (`parentId`) non viene ricreato.
-- Opzioni (`?conversations=0|1&memories=0|1&knowledge=0|1`, tutte attive per impostazione predefinita).
+- **Tutto o niente**: l'importazione avviene in un'unica transazione; se una parte del file non è valida non resta nulla di parziale.
+- Opzioni (`?conversations=0|1&memories=0|1&knowledge=0|1`, tutte attive per impostazione predefinita; `projectId=<id>` aggiunge il personaggio a un progetto).
+- **Cronologia**: le revisioni di `identityRevisions` vengono ricreate con numero, motivo, data e contenuto originali, e il personaggio mantiene il suo `identityVersion` (quindi «identità v3» resta v3 e le versioni precedenti si possono ripristinare). Senza `identityRevisions` (file meno recenti) l'identità riparte dalla versione 1. Anche lo stato (`archived`) viene mantenuto.
+- **Promozioni**: `promotedFromId` viene ricollegato se anche la memoria d'origine è nel file.
+- La base di conoscenza mantiene le date originali e le fonti disattivate restano disattivate; i vincoli sono gli stessi della creazione manuale (titolo ≤ 500 caratteri, contenuto ≤ 2 000 000).
 - Le conversazioni del Laboratorio vengono importate con messaggi e riassunti; i messaggi con `isSelf: true` vengono attribuiti al nuovo personaggio.
 - Le **sessioni di scenario e le simulazioni** non vengono importate (dipendono da scenari e altri personaggi): sono conteggiate in `skipped.scenarioConversations`. Restano comunque nel file come archivio leggibile.
 - Le **memorie contestuali** vengono importate solo se lo scenario referenziato esiste nel database di destinazione con lo stesso id; altrimenti sono saltate e conteggiate in `skipped.contextualMemories`.
 - La provenienza delle memorie viene conservata e annotata con l'id della memoria originale.
-- Il file viene validato: formato o versione non riconosciuti producono l'errore `invalid_import`.
+- Il file viene validato prima di qualsiasi scrittura. Gli errori sono `400 invalid_import` con `details.reason`:
+  - `wrong_format`: è un altro file di PERSONA (`details.found`, es. `persona.scenario`); l'interfaccia indica dove importarlo;
+  - `not_persona`: non è un file di PERSONA;
+  - `newer_version`: creato da una versione più recente (`details.version`, `details.supported`);
+  - `invalid`: struttura non valida (il messaggio indica il campo).
+- Le stesse regole di formato, versione e atomicità valgono per scenari (`persona.scenario`) e progetti (`persona.project`).
 
 ## Compatibilità
 
-Le versioni future del formato incrementeranno `version` e manterranno l'importazione delle versioni precedenti.
+Le versioni future del formato incrementeranno `version` e manterranno l'importazione delle versioni precedenti. Campi aggiunti in modo compatibile (come `identityRevisions` e `status`) restano nella versione 1: i file che non li contengono si importano come prima.
 
 ---
 

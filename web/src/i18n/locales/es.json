@@ -276,14 +276,21 @@
     "talk": "Conversar",
     "createVariant": "Crear variante",
     "deleteConfirm": "¿Eliminar «{{name}}» con todos sus recuerdos y conversaciones? No se puede deshacer.",
-    "importDone": "Importado «{{name}}»: {{memories}} recuerdos, {{conversations}} conversaciones, {{knowledge}} fuentes.",
+    "importDone": "Importado «{{name}}»: {{memories}} recuerdos, {{conversations}} conversaciones, {{knowledge}} fuentes, {{revisions}} versiones anteriores.",
     "importSkipped": "No importados: {{memories}} recuerdos contextuales y {{sessions}} sesiones de escenario (escenario ausente).",
     "exportTitle": "Exportar identidad",
     "exportConversations": "Incluir las conversaciones del laboratorio",
     "exportContextual": "Incluir recuerdos y sesiones de escenario",
     "exportKnowledge": "Incluir la base de conocimiento",
     "identityVersion": "identidad v{{version}}",
-    "duplicated": "Personaje duplicado"
+    "duplicated": "Personaje duplicado",
+    "importTitle": "Importar un personaje",
+    "importHelp": "El personaje se importa como una nueva identidad, con su historial: los datos existentes nunca se sobrescriben.",
+    "importMemories": "Incluir los recuerdos",
+    "importConversations": "Incluir las conversaciones del laboratorio",
+    "importKnowledge": "Incluir la base de conocimiento",
+    "importIntoProject": "El personaje se añadirá al proyecto «{{name}}».",
+    "exportHelp": "El archivo contiene la identidad con su historial, los recuerdos personales y, si se eligen, conversaciones y base de conocimiento."
   },
   "editor": {
     "newTitle": "Nuevo personaje",
@@ -776,5 +783,12 @@
     "embeddingsStatus": "{{mem}}/{{memTotal}} recuerdos y {{chunks}}/{{chunksTotal}} fragmentos de conocimiento indexados",
     "embeddingsRunning": "Indexación en curso…",
     "embeddingsLastError": "Último error: {{error}}"
+  },
+  "importFile": {
+    "isCharacter": "Este archivo contiene un personaje: impórtalo desde Personajes → Importar.",
+    "isScenario": "Este archivo contiene un escenario: impórtalo desde Escenarios → Importar escenario.",
+    "isProject": "Este archivo contiene un proyecto: ábrelo desde Proyectos → Abrir desde archivo.",
+    "notPersona": "Este archivo no es una exportación de PERSONA.",
+    "newerVersion": "Este archivo fue creado por una versión más reciente de PERSONA (formato v{{version}}, compatible hasta v{{supported}}). Actualiza la aplicación para abrirlo."
   }
 }

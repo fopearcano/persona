@@ -276,14 +276,21 @@
     "talk": "Talk",
     "createVariant": "Create variant",
     "deleteConfirm": "Delete “{{name}}” with all memories and conversations? This cannot be undone.",
-    "importDone": "Imported “{{name}}”: {{memories}} memories, {{conversations}} conversations, {{knowledge}} sources.",
+    "importDone": "Imported “{{name}}”: {{memories}} memories, {{conversations}} conversations, {{knowledge}} sources, {{revisions}} earlier versions.",
     "importSkipped": "Not imported: {{memories}} contextual memories and {{sessions}} scenario sessions (scenario missing).",
     "exportTitle": "Export identity",
     "exportConversations": "Include laboratory conversations",
     "exportContextual": "Include scenario memories and sessions",
     "exportKnowledge": "Include the knowledge base",
     "identityVersion": "identity v{{version}}",
-    "duplicated": "Character duplicated"
+    "duplicated": "Character duplicated",
+    "importTitle": "Import a character",
+    "importHelp": "The character is imported as a new identity, with its history: existing data is never overwritten.",
+    "importMemories": "Include memories",
+    "importConversations": "Include lab conversations",
+    "importKnowledge": "Include the knowledge base",
+    "importIntoProject": "The character will be added to the project “{{name}}”.",
+    "exportHelp": "The file contains the identity with its history, personal memories and, if selected, conversations and knowledge base."
   },
   "editor": {
     "newTitle": "New character",
@@ -776,5 +783,12 @@
     "embeddingsStatus": "Indexed {{mem}}/{{memTotal}} memories and {{chunks}}/{{chunksTotal}} knowledge chunks",
     "embeddingsRunning": "Indexing in progress…",
     "embeddingsLastError": "Last error: {{error}}"
+  },
+  "importFile": {
+    "isCharacter": "This file contains a character: import it from Characters → Import.",
+    "isScenario": "This file contains a scenario: import it from Scenarios → Import scenario.",
+    "isProject": "This file contains a project: open it from Projects → Open from file.",
+    "notPersona": "This file is not a PERSONA export.",
+    "newerVersion": "This file was created by a newer version of PERSONA (format v{{version}}, supported up to v{{supported}}). Update the app to open it."
   }
 }

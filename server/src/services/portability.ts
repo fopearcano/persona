@@ -2,13 +2,15 @@
  * Portabilità dei dati: esportazione/importazione JSON documentata dei personaggi
  * (docs/export-format.md) e backup/ripristino del database SQLite.
  */
-import type { BackupInfo, Character, CharacterExportV1, ExportedConversation, ExportedMemory } from '@persona/shared';
+import type { BackupInfo, Character, CharacterExportV1, CharacterSnapshot, ExportedConversation, ExportedMemory } from '@persona/shared';
 import {
   CHARACTER_EXPORT_FORMAT,
   CHARACTER_EXPORT_VERSION,
+  CHARACTER_STATUSES,
   characterProfileSchema,
   EPISTEMIC_STATUSES,
   expertiseInputSchema,
+  knowledgeSourceInputSchema,
   languageInputSchema,
   MEMORY_CATEGORIES,
   MEMORY_ORIGINS,
@@ -21,20 +23,23 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
 import {
+  characters,
   conversationParticipants,
   conversationSummaries,
   conversations,
+  identityRevisions,
   knowledgeSources,
   memories,
   memorySources,
   messages,
   scenarios,
 } from '../db/schema.js';
-import { AppError, newId, nowIso, validate } from '../lib/util.js';
+import { assertPersonaFile } from '../lib/import-check.js';
+import { AppError, newId, nowIso, parseJson } from '../lib/util.js';
 import { createCharacter, getCharacter, snapshotOf } from './characters.js';
 import { createKnowledgeSource } from './knowledge.js';
 import { scheduleIndexing } from './embeddings.js';
-import { listMemories } from './memory.js';
+import { listAllMemories } from './memory.js';
 
 export interface ExportOptions {
   conversations: boolean;
@@ -44,7 +49,8 @@ export interface ExportOptions {
 
 export function exportCharacter(ctx: AppContext, id: string, opts: ExportOptions): CharacterExportV1 {
   const c = getCharacter(ctx, id);
-  const mems = listMemories(ctx, { characterId: id, limit: 1000 }).filter((m) => opts.contextual || m.category !== 'contextual');
+  // Tutte le memorie, senza limite: un'esportazione non deve mai troncare l'identità.
+  const mems = listAllMemories(ctx, { characterId: id }).filter((m) => opts.contextual || m.category !== 'contextual');
   const exportedMemories: ExportedMemory[] = mems.map((m) => ({
     id: m.id,
     category: m.category,
@@ -108,7 +114,12 @@ export function exportCharacter(ctx: AppContext, id: string, opts: ExportOptions
         .where(eq(messages.conversationId, conv.id))
         .orderBy(asc(messages.seq), asc(messages.createdAt))
         .all();
-      const sums = ctx.dbm.db.select().from(conversationSummaries).where(eq(conversationSummaries.conversationId, conv.id)).all();
+      const sums = ctx.dbm.db
+        .select()
+        .from(conversationSummaries)
+        .where(eq(conversationSummaries.conversationId, conv.id))
+        .orderBy(asc(conversationSummaries.toSeq))
+        .all();
       convs.push({
         id: conv.id,
         kind: conv.kind as ExportedConversation['kind'],
@@ -148,6 +159,14 @@ export function exportCharacter(ctx: AppContext, id: string, opts: ExportOptions
         .all()
     : [];
 
+  const revisions = ctx.dbm.db
+    .select()
+    .from(identityRevisions)
+    .where(eq(identityRevisions.characterId, id))
+    .orderBy(asc(identityRevisions.version), asc(identityRevisions.createdAt))
+    .all()
+    .map((r) => ({ version: r.version, reason: r.reason, createdAt: r.createdAt, snapshot: parseJson<CharacterSnapshot>(r.snapshot, {} as CharacterSnapshot) }));
+
   return {
     format: CHARACTER_EXPORT_FORMAT,
     version: CHARACTER_EXPORT_VERSION,
@@ -159,9 +178,11 @@ export function exportCharacter(ctx: AppContext, id: string, opts: ExportOptions
       identityVersion: c.identityVersion,
       parentId: c.parentId,
       variantNote: c.variantNote,
+      status: c.status,
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,
     },
+    identityRevisions: revisions,
     memories: exportedMemories,
     knowledge,
     conversations: convs,
@@ -173,16 +194,31 @@ export function exportCharacter(ctx: AppContext, id: string, opts: ExportOptions
 /* Importazione                                                        */
 /* ------------------------------------------------------------------ */
 
+const snapshotSchema = characterProfileSchema.extend({
+  traits: z.array(traitInputSchema).default([]),
+  languages: z.array(languageInputSchema).default([]),
+  expertise: z.array(expertiseInputSchema).default([]),
+});
+
 const importSchema = z.object({
   format: z.literal(CHARACTER_EXPORT_FORMAT),
   version: z.literal(CHARACTER_EXPORT_VERSION),
-  character: characterProfileSchema.extend({
+  character: snapshotSchema.extend({
     id: z.string().optional(),
+    identityVersion: z.number().int().min(1).optional(),
     variantNote: z.string().nullish(),
-    traits: z.array(traitInputSchema).default([]),
-    languages: z.array(languageInputSchema).default([]),
-    expertise: z.array(expertiseInputSchema).default([]),
+    status: z.enum(CHARACTER_STATUSES).optional(),
   }),
+  identityRevisions: z
+    .array(
+      z.object({
+        version: z.number().int().min(1),
+        reason: z.string().nullish(),
+        createdAt: z.string(),
+        snapshot: snapshotSchema,
+      }),
+    )
+    .default([]),
   memories: z
     .array(
       z.object({
@@ -196,6 +232,7 @@ const importSchema = z.object({
         status: z.enum(MEMORY_STATUSES).default('active'),
         origin: z.enum(MEMORY_ORIGINS).default('import'),
         pinned: z.boolean().default(false),
+        promotedFromId: z.string().nullish(),
         createdAt: z.string().optional(),
         sources: z
           .array(
@@ -212,20 +249,8 @@ const importSchema = z.object({
       }),
     )
     .default([]),
-  knowledge: z
-    .array(
-      z.object({
-        title: z.string().min(1),
-        kind: z.enum(['text', 'markdown', 'note']).default('text'),
-        content: z.string().min(1),
-        sourceRef: z.string().nullish(),
-        epistemicStatus: z.enum(EPISTEMIC_STATUSES).default('fact'),
-        language: z.string().nullish(),
-        enabled: z.boolean().default(true),
-        createdAt: z.string().optional(),
-      }),
-    )
-    .default([]),
+  // Stessi vincoli della creazione manuale: un file non valido viene rifiutato prima di scrivere.
+  knowledge: z.array(knowledgeSourceInputSchema.extend({ createdAt: z.string().optional() })).default([]),
   conversations: z
     .array(
       z.object({
@@ -267,160 +292,190 @@ export interface ImportOptions {
 
 export interface ImportResult {
   character: Character;
-  imported: { memories: number; knowledge: number; conversations: number; messages: number };
+  imported: { memories: number; knowledge: number; conversations: number; messages: number; revisions: number };
   skipped: { contextualMemories: number; scenarioConversations: number };
 }
 
 /**
  * Importa un personaggio come NUOVA identità (nuovi identificativi): non sovrascrive
- * mai dati esistenti. Le memorie contestuali e le sessioni di scenario vengono
- * importate solo se lo scenario di riferimento esiste in questo database.
+ * mai dati esistenti. Le memorie contestuali vengono importate solo se lo scenario di
+ * riferimento esiste in questo database; le sessioni di scenario non vengono importate
+ * (si trasferiscono con il file dello scenario o del progetto).
+ *
+ * Tutto o niente: se una parte del file non è valida non resta nulla di parziale.
  */
 export function importCharacter(ctx: AppContext, payload: unknown, opts: ImportOptions): ImportResult {
+  assertPersonaFile(payload, CHARACTER_EXPORT_FORMAT, CHARACTER_EXPORT_VERSION);
   let data: z.output<typeof importSchema>;
   try {
     data = importSchema.parse(payload);
   } catch (err) {
-    throw new AppError('invalid_import', `File di esportazione non valido: ${(err as Error).message.slice(0, 500)}`, 400);
+    throw new AppError('invalid_import', `File di esportazione non valido: ${(err as Error).message.slice(0, 500)}`, 400, { reason: 'invalid' });
   }
-  const { id: _id, variantNote, traits, languages, expertise, ...profile } = data.character;
-  const created = createCharacter(
-    ctx,
-    { ...profile, traits, languages, expertise, revisionReason: null },
-    { parentId: null, variantNote: variantNote ?? null },
-  );
+  const result = ctx.dbm.sqlite.transaction(() => writeImport(ctx, data, opts))();
+  scheduleIndexing(ctx);
+  result.character = getCharacter(ctx, result.character.id);
+  return result;
+}
+
+function writeImport(ctx: AppContext, data: z.output<typeof importSchema>, opts: ImportOptions): ImportResult {
+  const { id: _id, identityVersion, variantNote, status, ...profile } = data.character;
+  const created = createCharacter(ctx, { ...profile, revisionReason: null }, { parentId: null, variantNote: variantNote ?? null });
   const result: ImportResult = {
     character: created,
-    imported: { memories: 0, knowledge: 0, conversations: 0, messages: 0 },
+    imported: { memories: 0, knowledge: 0, conversations: 0, messages: 0, revisions: 0 },
     skipped: { contextualMemories: 0, scenarioConversations: 0 },
   };
-  const localScenarios = new Set(ctx.dbm.db.select({ id: scenarios.id }).from(scenarios).all().map((s) => s.id));
+  const db = ctx.dbm.db;
+
+  // Cronologia dell'identità: solo versioni precedenti a quella corrente, una per numero.
+  const byVersion = new Map<number, (typeof data.identityRevisions)[number]>();
+  for (const r of data.identityRevisions) {
+    if (identityVersion && r.version >= identityVersion) continue;
+    const prev = byVersion.get(r.version);
+    if (!prev || r.createdAt > prev.createdAt) byVersion.set(r.version, r);
+  }
+  const revisions = [...byVersion.values()].sort((a, b) => a.version - b.version);
+  for (const r of revisions) {
+    const { traits, languages, expertise, ...fields } = r.snapshot;
+    db.insert(identityRevisions)
+      .values({ id: newId(), characterId: created.id, version: r.version, snapshot: JSON.stringify(snapshotOf({ ...fields, traits, languages, expertise } as CharacterSnapshot)), reason: r.reason ?? null, createdAt: r.createdAt })
+      .run();
+    result.imported.revisions++;
+  }
+  // Senza cronologia nel file (file meno recenti) l'identità riparte dalla versione 1.
+  const version = revisions.length ? Math.max(identityVersion ?? 1, revisions[revisions.length - 1].version + 1) : 1;
+  if (version !== 1 || (status && status !== 'active')) {
+    db.update(characters)
+      .set({ identityVersion: version, status: status ?? 'active' })
+      .where(eq(characters.id, created.id))
+      .run();
+  }
+
+  const localScenarios = new Set(db.select({ id: scenarios.id }).from(scenarios).all().map((s) => s.id));
   const convMap = new Map<string, string>();
   const msgMap = new Map<string, string>();
 
-  ctx.dbm.db.transaction((tx) => {
-    if (opts.includeConversations) {
-      for (const conv of data.conversations) {
-        if (conv.kind !== 'lab') {
-          result.skipped.scenarioConversations++;
-          continue;
-        }
-        const cid = newId();
-        convMap.set(conv.id, cid);
-        const maxSeq = conv.messages.reduce((n, m) => Math.max(n, m.seq), 0);
-        tx.insert(conversations)
-          .values({
-            id: cid,
-            kind: 'lab',
-            characterId: created.id,
-            scenarioId: null,
-            title: conv.title,
-            language: conv.language,
-            defaultMode: conv.defaultMode,
-            turnMode: 'manual',
-            archived: false,
-            summarizedSeq: conv.summaries.reduce((n, s) => Math.max(n, s.toSeq), 0),
-            memoryProcessedSeq: opts.includeMemories ? maxSeq : 0,
-            createdAt: conv.createdAt,
-            updatedAt: conv.updatedAt ?? conv.createdAt,
-          })
-          .run();
-        tx.insert(conversationParticipants).values({ id: newId(), conversationId: cid, characterId: created.id, sortOrder: 0 }).run();
-        for (const m of conv.messages) {
-          const mid = newId();
-          msgMap.set(m.id, mid);
-          tx.insert(messages)
-            .values({
-              id: mid,
-              conversationId: cid,
-              seq: m.seq,
-              role: m.role,
-              characterId: m.isSelf ? created.id : null,
-              speakerName: m.isSelf ? created.name : (m.speakerName ?? null),
-              content: m.content,
-              mode: m.mode,
-              language: m.language ?? null,
-              status: m.status,
-              model: m.model ?? null,
-              createdAt: m.createdAt,
-            })
-            .run();
-          result.imported.messages++;
-        }
-        for (const s of conv.summaries) {
-          tx.insert(conversationSummaries)
-            .values({ id: newId(), conversationId: cid, fromSeq: s.fromSeq, toSeq: s.toSeq, content: s.content, createdAt: s.createdAt })
-            .run();
-        }
-        result.imported.conversations++;
+  if (opts.includeConversations) {
+    for (const conv of data.conversations) {
+      if (conv.kind !== 'lab') {
+        result.skipped.scenarioConversations++;
+        continue;
       }
-    }
-
-    if (opts.includeMemories) {
-      const ts = nowIso();
-      for (const m of data.memories) {
-        const scenarioId = m.category === 'contextual' ? (m.scenarioId ?? null) : null;
-        if (m.category === 'contextual' && (!scenarioId || !localScenarios.has(scenarioId))) {
-          result.skipped.contextualMemories++;
-          continue;
-        }
+      const cid = newId();
+      convMap.set(conv.id, cid);
+      const maxSeq = conv.messages.reduce((n, m) => Math.max(n, m.seq), 0);
+      db.insert(conversations)
+        .values({
+          id: cid,
+          kind: 'lab',
+          characterId: created.id,
+          scenarioId: null,
+          title: conv.title,
+          language: conv.language,
+          defaultMode: conv.defaultMode,
+          turnMode: 'manual',
+          archived: false,
+          summarizedSeq: conv.summaries.reduce((n, s) => Math.max(n, s.toSeq), 0),
+          memoryProcessedSeq: opts.includeMemories ? maxSeq : 0,
+          createdAt: conv.createdAt,
+          updatedAt: conv.updatedAt ?? conv.createdAt,
+        })
+        .run();
+      db.insert(conversationParticipants).values({ id: newId(), conversationId: cid, characterId: created.id, sortOrder: 0 }).run();
+      for (const m of conv.messages) {
         const mid = newId();
-        tx.insert(memories)
+        msgMap.set(m.id, mid);
+        db.insert(messages)
           .values({
             id: mid,
-            characterId: created.id,
-            category: m.category,
-            scenarioId,
+            conversationId: cid,
+            seq: m.seq,
+            role: m.role,
+            characterId: m.isSelf ? created.id : null,
+            speakerName: m.isSelf ? created.name : (m.speakerName ?? null),
             content: m.content,
-            importance: m.importance,
-            epistemicStatus: m.epistemicStatus,
+            mode: m.mode,
             language: m.language ?? null,
             status: m.status,
-            origin: m.origin,
-            pinned: m.pinned,
-            promotedFromId: null,
-            retrievalCount: 0,
-            createdAt: m.createdAt ?? ts,
-            updatedAt: ts,
+            model: m.model ?? null,
+            createdAt: m.createdAt,
           })
           .run();
-        const sources = m.sources.length ? m.sources : [{}];
-        for (const s of sources as z.output<typeof importSchema>['memories'][number]['sources']) {
-          tx.insert(memorySources)
-            .values({
-              id: newId(),
-              memoryId: mid,
-              conversationId: s.conversationId ? (convMap.get(s.conversationId) ?? null) : null,
-              messageId: s.messageId ? (msgMap.get(s.messageId) ?? null) : null,
-              scenarioId: s.scenarioId && localScenarios.has(s.scenarioId) ? s.scenarioId : null,
-              fromSeq: s.fromSeq ?? null,
-              toSeq: s.toSeq ?? null,
-              note: [s.note, `Importata (memoria originale ${m.id})`].filter(Boolean).join(' — '),
-              createdAt: ts,
-            })
-            .run();
-        }
-        result.imported.memories++;
+        result.imported.messages++;
       }
+      for (const s of conv.summaries) {
+        db.insert(conversationSummaries)
+          .values({ id: newId(), conversationId: cid, fromSeq: s.fromSeq, toSeq: s.toSeq, content: s.content, createdAt: s.createdAt })
+          .run();
+      }
+      result.imported.conversations++;
     }
-  });
+  }
+
+  if (opts.includeMemories) {
+    const ts = nowIso();
+    const memMap = new Map<string, string>();
+    const pendingPromotions: { id: string; from: string }[] = [];
+    for (const m of data.memories) {
+      const scenarioId = m.category === 'contextual' ? (m.scenarioId ?? null) : null;
+      if (m.category === 'contextual' && (!scenarioId || !localScenarios.has(scenarioId))) {
+        result.skipped.contextualMemories++;
+        continue;
+      }
+      const mid = newId();
+      memMap.set(m.id, mid);
+      if (m.promotedFromId) pendingPromotions.push({ id: mid, from: m.promotedFromId });
+      db.insert(memories)
+        .values({
+          id: mid,
+          characterId: created.id,
+          category: m.category,
+          scenarioId,
+          content: m.content,
+          importance: m.importance,
+          epistemicStatus: m.epistemicStatus,
+          language: m.language ?? null,
+          status: m.status,
+          origin: m.origin,
+          pinned: m.pinned,
+          promotedFromId: null,
+          retrievalCount: 0,
+          createdAt: m.createdAt ?? ts,
+          updatedAt: ts,
+        })
+        .run();
+      const sources = m.sources.length ? m.sources : [{}];
+      for (const s of sources as z.output<typeof importSchema>['memories'][number]['sources']) {
+        db.insert(memorySources)
+          .values({
+            id: newId(),
+            memoryId: mid,
+            conversationId: s.conversationId ? (convMap.get(s.conversationId) ?? null) : null,
+            messageId: s.messageId ? (msgMap.get(s.messageId) ?? null) : null,
+            scenarioId: s.scenarioId && localScenarios.has(s.scenarioId) ? s.scenarioId : null,
+            fromSeq: s.fromSeq ?? null,
+            toSeq: s.toSeq ?? null,
+            note: [s.note, `Importata (memoria originale ${m.id})`].filter(Boolean).join(' — '),
+            createdAt: ts,
+          })
+          .run();
+      }
+      result.imported.memories++;
+    }
+    // Le promozioni restano collegate se anche la memoria d'origine è nel file.
+    for (const p of pendingPromotions) {
+      const from = memMap.get(p.from);
+      if (from) db.update(memories).set({ promotedFromId: from }).where(eq(memories.id, p.id)).run();
+    }
+  }
 
   if (opts.includeKnowledge) {
-    for (const k of data.knowledge) {
-      createKnowledgeSource(ctx, created.id, {
-        title: k.title,
-        kind: k.kind,
-        content: k.content,
-        sourceRef: k.sourceRef ?? null,
-        epistemicStatus: k.epistemicStatus,
-        language: k.language ?? null,
-        enabled: k.enabled,
-      });
+    for (const { createdAt, ...k } of data.knowledge) {
+      createKnowledgeSource(ctx, created.id, k, createdAt);
       result.imported.knowledge++;
     }
   }
-  scheduleIndexing(ctx);
-  result.character = getCharacter(ctx, created.id);
   return result;
 }
 

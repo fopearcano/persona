@@ -136,7 +136,7 @@ node scripts/e2e-smoke.cjs /tmp/persona-shots   # in un altro terminale
 - Database: `data/persona.db` (SQLite, UTF-8). Backup in `data/backups/`.
 - **Backup**: Impostazioni → Backup (copia consistente tramite l'API di backup di SQLite). Il ripristino salva prima una copia di sicurezza del database corrente. Nota: il backup contiene anche le eventuali chiavi API salvate nelle configurazioni dei motori.
 - **Progetti**: tutto viene salvato automaticamente nel database locale; *Salva su file* crea una copia portabile del progetto (`persona.project`), riapribile con *Apri da file* sullo stesso o su un altro computer (riusando i personaggi già presenti o importandoli come nuove identità). Un progetto riaperto accanto all'originale riceve un nome numerato, es. «Saga (2)».
-- **Esportazione personaggi e scenari**: JSON documentato in [`docs/export-format.md`](docs/export-format.md). L'importazione non sovrascrive mai dati esistenti (i personaggi di uno scenario possono essere riutilizzati se già presenti).
+- **Esportazione personaggi e scenari**: JSON documentato in [`docs/export-format.md`](docs/export-format.md). Un personaggio esportato porta con sé identità, cronologia delle versioni, tutte le memorie personali e, a scelta, conversazioni del laboratorio e base di conoscenza; all'importazione si può scegliere cosa includere. L'importazione non sovrascrive mai dati esistenti, è tutto o niente (un file danneggiato non lascia dati parziali) e, se il file è di un altro tipo (scenario, progetto) o di una versione più recente, lo dice chiaramente.
 
 ## Architettura in breve
 

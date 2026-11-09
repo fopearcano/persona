@@ -1,5 +1,6 @@
 import type {
   CharacterSnapshot,
+  CharacterStatus,
   ConversationKind,
   DialogueMode,
   EpistemicStatus,
@@ -28,14 +29,28 @@ export interface CharacterExportV1 {
     identityVersion: number;
     parentId: string | null;
     variantNote: string | null;
+    /** Stato del personaggio (assente nei file meno recenti: vale 'active'). */
+    status?: CharacterStatus;
     createdAt: string;
     updatedAt: string;
   };
+  /**
+   * Cronologia dell'identità: le versioni precedenti a `character.identityVersion`
+   * (assente nei file meno recenti). All'importazione viene ricostruita così com'è.
+   */
+  identityRevisions?: ExportedIdentityRevision[];
   memories: ExportedMemory[];
   knowledge: ExportedKnowledgeSource[];
   conversations: ExportedConversation[];
   /** Scenari referenziati dalle memorie contestuali e dalle conversazioni esportate. */
   scenarios: ExportedScenarioRef[];
+}
+
+export interface ExportedIdentityRevision {
+  version: number;
+  reason: string | null;
+  createdAt: string;
+  snapshot: CharacterSnapshot;
 }
 
 export interface ExportedMemory {

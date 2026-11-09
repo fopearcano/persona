@@ -12,6 +12,7 @@ import {
   useId,
   useRef,
 } from 'react';
+import { type TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '../api/client';
 import { useUi } from '../stores/ui';
@@ -257,6 +258,10 @@ export function EmptyState({ children, action }: { children: ReactNode; action?:
 export function useErrorText() {
   const { t } = useTranslation();
   return (err: unknown): string => {
+    if (err instanceof ApiError && err.code === 'invalid_import') {
+      const text = importFileText(t, err.details);
+      if (text) return text;
+    }
     if (err instanceof ApiError) {
       const key = `errors.${err.code}`;
       return t(key, { message: err.message, defaultValue: err.message || t('errors.generic') });
@@ -267,6 +272,20 @@ export function useErrorText() {
     }
     return t('errors.generic');
   };
+}
+
+/** File di PERSONA del tipo sbagliato o di una versione più recente (dettagli del server). */
+const FOUND_KEY: Record<string, string> = {
+  'persona.character': 'importFile.isCharacter',
+  'persona.scenario': 'importFile.isScenario',
+  'persona.project': 'importFile.isProject',
+};
+function importFileText(t: TFunction, details: unknown): string | null {
+  const d = (details ?? {}) as { reason?: string; found?: string; version?: number; supported?: number };
+  if (d.reason === 'wrong_format' && d.found && FOUND_KEY[d.found]) return t(FOUND_KEY[d.found]);
+  if (d.reason === 'not_persona') return t('importFile.notPersona');
+  if (d.reason === 'newer_version') return t('importFile.newerVersion', { version: d.version, supported: d.supported });
+  return null;
 }
 
 export function ErrorBox({ error, onRetry }: { error: unknown; onRetry?(): void }) {

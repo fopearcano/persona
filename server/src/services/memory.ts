@@ -74,6 +74,24 @@ export function getMemory(ctx: AppContext, id: string): Memory {
   return withSources(ctx, [row])[0];
 }
 
+/**
+ * Tutte le memorie di un personaggio o di uno scenario, senza limite e in ordine di creazione:
+ * per esportazioni e salvataggi, che non devono mai troncare i dati.
+ */
+export function listAllMemories(ctx: AppContext, filter: { characterId?: string; scenarioId?: string }): Memory[] {
+  const conds: SQL[] = [];
+  if (filter.characterId) conds.push(eq(memories.characterId, filter.characterId));
+  if (filter.scenarioId) conds.push(eq(memories.scenarioId, filter.scenarioId));
+  if (conds.length === 0) throw new AppError('validation', 'Filtro obbligatorio');
+  const rows = ctx.dbm.db
+    .select()
+    .from(memories)
+    .where(and(...conds))
+    .orderBy(asc(memories.createdAt), asc(memories.id))
+    .all();
+  return withSources(ctx, rows);
+}
+
 export function listMemories(ctx: AppContext, query: unknown): Memory[] {
   const q = validate(memoryQuerySchema, query);
   const conds: SQL[] = [];

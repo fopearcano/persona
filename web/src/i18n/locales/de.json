@@ -276,14 +276,21 @@
     "talk": "Sprechen",
     "createVariant": "Variante erstellen",
     "deleteConfirm": "„{{name}}“ mit allen Erinnerungen und Gesprächen löschen? Dies kann nicht rückgängig gemacht werden.",
-    "importDone": "„{{name}}“ importiert: {{memories}} Erinnerungen, {{conversations}} Gespräche, {{knowledge}} Quellen.",
+    "importDone": "„{{name}}“ importiert: {{memories}} Erinnerungen, {{conversations}} Gespräche, {{knowledge}} Quellen, {{revisions}} frühere Versionen.",
     "importSkipped": "Nicht importiert: {{memories}} kontextuelle Erinnerungen und {{sessions}} Szenario-Sitzungen (Szenario fehlt).",
     "exportTitle": "Identität exportieren",
     "exportConversations": "Labor-Gespräche einschließen",
     "exportContextual": "Szenario-Erinnerungen und -Sitzungen einschließen",
     "exportKnowledge": "Wissensbasis einschließen",
     "identityVersion": "Identität v{{version}}",
-    "duplicated": "Figur dupliziert"
+    "duplicated": "Figur dupliziert",
+    "importTitle": "Figur importieren",
+    "importHelp": "Die Figur wird als neue Identität mit ihrem Verlauf importiert: Vorhandene Daten werden nie überschrieben.",
+    "importMemories": "Erinnerungen einschließen",
+    "importConversations": "Labor-Gespräche einschließen",
+    "importKnowledge": "Wissensbasis einschließen",
+    "importIntoProject": "Die Figur wird dem Projekt „{{name}}“ hinzugefügt.",
+    "exportHelp": "Die Datei enthält die Identität mit ihrem Verlauf, die persönlichen Erinnerungen und, falls gewählt, Gespräche und Wissensbasis."
   },
   "editor": {
     "newTitle": "Neue Figur",
@@ -776,5 +783,12 @@
     "embeddingsStatus": "{{mem}}/{{memTotal}} Erinnerungen und {{chunks}}/{{chunksTotal}} Wissensabschnitte indiziert",
     "embeddingsRunning": "Indizierung läuft…",
     "embeddingsLastError": "Letzter Fehler: {{error}}"
+  },
+  "importFile": {
+    "isCharacter": "Diese Datei enthält eine Figur: Importiere sie über Figuren → Importieren.",
+    "isScenario": "Diese Datei enthält ein Szenario: Importiere es über Szenarien → Szenario importieren.",
+    "isProject": "Diese Datei enthält ein Projekt: Öffne es über Projekte → Aus Datei öffnen.",
+    "notPersona": "Diese Datei ist kein PERSONA-Export.",
+    "newerVersion": "Diese Datei wurde mit einer neueren PERSONA-Version erstellt (Format v{{version}}, unterstützt bis v{{supported}}). Aktualisiere die App, um sie zu öffnen."
   }
 }

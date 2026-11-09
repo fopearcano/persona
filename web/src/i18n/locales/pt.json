@@ -276,14 +276,21 @@
     "talk": "Conversar",
     "createVariant": "Criar variante",
     "deleteConfirm": "Excluir “{{name}}” com todas as memórias e conversas? Não é possível desfazer.",
-    "importDone": "“{{name}}” importado: {{memories}} memórias, {{conversations}} conversas, {{knowledge}} fontes.",
+    "importDone": "Importado “{{name}}”: {{memories}} memórias, {{conversations}} conversas, {{knowledge}} fontes, {{revisions}} versões anteriores.",
     "importSkipped": "Não importados: {{memories}} memórias contextuais e {{sessions}} sessões de cenário (cenário ausente).",
     "exportTitle": "Exportar identidade",
     "exportConversations": "Incluir as conversas do laboratório",
     "exportContextual": "Incluir memórias e sessões de cenário",
     "exportKnowledge": "Incluir a base de conhecimento",
     "identityVersion": "identidade v{{version}}",
-    "duplicated": "Personagem duplicado"
+    "duplicated": "Personagem duplicado",
+    "importTitle": "Importar um personagem",
+    "importHelp": "O personagem é importado como uma nova identidade, com seu histórico: os dados existentes nunca são sobrescritos.",
+    "importMemories": "Incluir as memórias",
+    "importConversations": "Incluir as conversas do laboratório",
+    "importKnowledge": "Incluir a base de conhecimento",
+    "importIntoProject": "O personagem será adicionado ao projeto “{{name}}”.",
+    "exportHelp": "O arquivo contém a identidade com seu histórico, as memórias pessoais e, se escolhidas, conversas e base de conhecimento."
   },
   "editor": {
     "newTitle": "Novo personagem",
@@ -776,5 +783,12 @@
     "embeddingsStatus": "{{mem}}/{{memTotal}} memórias e {{chunks}}/{{chunksTotal}} fragmentos de conhecimento indexados",
     "embeddingsRunning": "Indexação em andamento…",
     "embeddingsLastError": "Último erro: {{error}}"
+  },
+  "importFile": {
+    "isCharacter": "Este arquivo contém um personagem: importe-o em Personagens → Importar.",
+    "isScenario": "Este arquivo contém um cenário: importe-o em Cenários → Importar cenário.",
+    "isProject": "Este arquivo contém um projeto: abra-o em Projetos → Abrir de arquivo.",
+    "notPersona": "Este arquivo não é uma exportação do PERSONA.",
+    "newerVersion": "Este arquivo foi criado por uma versão mais recente do PERSONA (formato v{{version}}, suportado até v{{supported}}). Atualize o aplicativo para abri-lo."
   }
 }

@@ -16,7 +16,13 @@ mkdirSync(SHOTS, { recursive: true });
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const errors = [];
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  // Errori HTTP attesi (es. un file del tipo sbagliato rifiutato con 400) non contano come errori.
+  let expectedHttpErrors = 0;
+  page.on('console', (m) => {
+    if (m.type() !== 'error') return;
+    if (expectedHttpErrors > 0 && m.text().startsWith('Failed to load resource')) { expectedHttpErrors--; return; }
+    errors.push(m.text());
+  });
   page.on('pageerror', (e) => errors.push('PAGEERROR ' + e.message));
   let failures = 0;
   const step = async (name, fn) => {
@@ -256,6 +262,37 @@ mkdirSync(SHOTS, { recursive: true });
     await page.getByText(/Aperto «Cronache di Marte \(2\)»: 1 personaggi nuovi, 0 riutilizzati, 1 scenari/).waitFor({ timeout: 5000 });
     await page.waitForTimeout(300);
     await page.screenshot({ path: `${SHOTS}/projects.png`, fullPage: true });
+  });
+  await step('persona export and import with history', async () => {
+    await page.goto(BASE + '/characters');
+    await page.getByLabel('Progetto attivo').selectOption({ label: 'Tutti i progetti' });
+    const card = page.locator('main li', { hasText: 'Irina Volkova' }).first();
+    await card.getByRole('button', { name: 'Esporta' }).click();
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('dialog').getByRole('button', { name: 'Esporta', exact: true }).click(),
+    ]);
+    const file = await download.path();
+    const data = JSON.parse(readFileSync(file, 'utf8'));
+    if (data.format !== 'persona.character' || data.identityRevisions.length !== 1) throw new Error('bad character file');
+    await page.getByRole('button', { name: 'Importa', exact: true }).click();
+    await page.getByRole('dialog').getByText('Includi le memorie').waitFor();
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('dialog').getByRole('button', { name: 'Importa', exact: true }).click();
+    await (await chooser).setFiles(file);
+    await page.getByText(/Importato «Irina Volkova»: .*1 versioni precedenti/).waitFor({ timeout: 5000 });
+  });
+  await step('a file of the wrong kind is explained', async () => {
+    const scenarios = await (await page.request.get(BASE + '/api/scenarios')).json();
+    const bundle = await (await page.request.get(`${BASE}/api/scenarios/${scenarios[0].id}/export`)).body();
+    await page.getByRole('button', { name: 'Importa', exact: true }).click();
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('dialog').getByRole('button', { name: 'Importa', exact: true }).click();
+    expectedHttpErrors = 1;
+    await (await chooser).setFiles({ name: 'scenario.json', mimeType: 'application/json', buffer: bundle });
+    await page.getByText('Questo file contiene uno scenario: importalo da Scenari → Importa scenario.').waitFor({ timeout: 5000 });
+    await page.screenshot({ path: `${SHOTS}/import-wrong-file.png` });
+    await page.keyboard.press('Escape');
   });
   await step('english ui', async () => {
     await page.goto(BASE + '/settings');
