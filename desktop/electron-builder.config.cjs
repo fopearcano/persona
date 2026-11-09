@@ -97,8 +97,8 @@ module.exports = {
     "target": [
       {
         "target": "dmg",
+        // Solo Intel: l'installer macOS è costruito sul runner self-hosted Intel (vedi release.yml).
         "arch": [
-          "arm64",
           "x64"
         ]
       }

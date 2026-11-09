@@ -75,7 +75,7 @@ xvfb-run npm run desktop:smoke   # verifica headless dell'app desktop
 cd desktop && npm run dist:linux # installer locali (dist:win / dist:mac sui rispettivi sistemi) → desktop/release/
 ```
 
-Release: versione in `desktop/package.json` + note in `docs/releases/vX.Y.Z.md`, poi tag `vX.Y.Z` (o workflow *Release* manuale con il tag). `.github/workflows/release.yml`: verifica → installer Windows (NSIS) con smoke test dell'app impacchettata → GitHub Release con SHA256SUMS. Si pubblica solo Windows (Linux/macOS sono configurati in `electron-builder.config.cjs` ma esclusi dalla matrice). Installer non firmato. Electron viene scaricato da `desktop/fetch-electron.mjs` (tentativi ripetuti + verifica SHA-256) e i download sono in cache tra le esecuzioni.
+Release: versione in `desktop/package.json` + note in `docs/releases/vX.Y.Z.md`, poi tag `vX.Y.Z` (o workflow *Release* manuale con il tag). `.github/workflows/release.yml`: verifica → installer Windows (NSIS) e Linux (AppImage + deb) sui runner GitHub, ciascuno con smoke test dell'app impacchettata (passi comuni in `build-installer.yml`, workflow riutilizzabile) → GitHub Release con SHA256SUMS → installer macOS **Intel** (dmg x64, firma ad hoc) su runner **self-hosted** `[self-hosted, macOS, X64]`, aggiunto alla release con SHA256SUMS aggiornato (job separato: un Mac offline non blocca Windows/Linux; smoke test macOS non bloccante perché richiede una sessione grafica). Installer non firmati. Non salvare token o credenziali dei runner nel repository. Electron viene scaricato da `desktop/fetch-electron.mjs` (tentativi ripetuti + verifica SHA-256) e i download sono in cache tra le esecuzioni.
 
 Variabili: `PERSONA_DATA_DIR` (default `./data`), `PERSONA_PORT` (4317), `PERSONA_HOST` (127.0.0.1), `PERSONA_LMSTUDIO_URL`, `OPENAI_API_KEY`, `PERSONA_ALLOWED_HOSTS`. Vedi `.env.example`.
 
@@ -89,10 +89,10 @@ Variabili: `PERSONA_DATA_DIR` (default `./data`), `PERSONA_PORT` (4317), `PERSON
 - Ogni nuova funzionalità backend ha un test in `server/test/` usando `createTestEnv()` (provider mock predefinito). Non dichiarare funzionalità complete senza test eseguiti.
 - UI sobria: token colore in `web/src/index.css` (`bg-panel`, `text-muted`, `border-border`, `text-accent`, …), niente animazioni superflue. Non usare colori d'accento fissi: sempre i token (`--accent*` sono sostituibili dall'utente). Dimensioni in `rem` (la dimensione del testo scala la radice); i testi lunghi usano `font-text`/`.prose-msg`/`textarea` (carattere dei testi), il resto eredita il carattere dell'interfaccia. Nessun font da CDN: solo pacchetti inclusi nel bundle.
 
-## Stato attuale (v0.3.0 + progetti)
+## Stato attuale (v0.4.0)
 
 Implementato e testato: fasi 1–6 — fondazioni, personaggi, memoria, scenari, simulazioni (turni manuali, rotazione, regia automatica), recupero semantico ibrido con embedding locali, PDF nella base di conoscenza, export/import di personaggi e scenari, backup/restore, app desktop Electron (Linux, headless), interfaccia in 6 lingue, indicatore di disponibilità del motore. Progetti (storie): divisione di personaggi/scenari/simulazioni per progetto, progetto attivo, salvataggio/apertura su file (`persona.project`), migrazione automatica dei dati esistenti in un progetto predefinito. Import/export dei personaggi con cronologia dell'identità, opzioni di importazione e messaggi chiari per file del tipo sbagliato. Impostazioni di stile: caratteri (anche macchina da scrivere), dimensione del testo, colore d'accento. 84 test server + 24 test web; smoke E2E Playwright (24 passaggi) e smoke desktop con provider mock.
 
-Installer desktop: le release pubblicano l'installer Windows, generato e verificato (smoke test dell'app impacchettata) dal workflow di release.
+Installer desktop: le release pubblicano Windows (x64), Linux (AppImage, deb) e macOS Intel (dmg, dal runner self-hosted), generati e verificati dal workflow di release.
 
 Non verificato: LM Studio reale (chat ed embedding testati contro un server finto compatibile). Non implementati: firma del codice, aggiornamento automatico, OCR. Traduzioni fr/es/de/pt non revisionate da madrelingua. Dettagli: `README.md` § Limiti noti e `docs/architecture.md`.
