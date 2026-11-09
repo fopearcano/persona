@@ -15,6 +15,9 @@ import type {
   ProviderType,
   ScenarioStatus,
   Theme,
+  FontChoice,
+  TextSize,
+  AccentChoice,
   TraitCategory,
   TurnMode,
 } from './constants.js';
@@ -513,11 +516,23 @@ export interface EmbeddingPreferences {
   semanticWeight: number;
 }
 
+export interface AppearancePreferences {
+  /** Carattere dell'interfaccia (menu, etichette, pulsanti). */
+  fontUi: FontChoice;
+  /** Carattere dei testi: conversazioni, campi di testo, memorie. */
+  fontText: FontChoice;
+  textSize: TextSize;
+  accent: AccentChoice;
+  /** Colore personalizzato (#rrggbb), usato quando accent = 'custom'. */
+  accentCustom: string | null;
+}
+
 export interface Preferences {
   /** Progetto attivo nell'interfaccia (null = tutti i progetti). */
   activeProjectId: string | null;
   uiLanguage: string;
   theme: Theme;
+  appearance: AppearancePreferences;
   conversationLanguage: string;
   defaultModelConfigId: string | null;
   memory: MemoryPreferences;

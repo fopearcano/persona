@@ -122,7 +122,7 @@ export function MemoryRow({
           </div>
         </div>
       ) : (
-        <p className="text-sm whitespace-pre-wrap">{m.content}</p>
+        <p className="font-text text-sm whitespace-pre-wrap">{m.content}</p>
       )}
 
       <details className="mt-2 text-xs text-muted">

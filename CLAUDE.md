@@ -25,6 +25,7 @@ desktop/  app Electron (pacchetto separato, fuori dai workspaces): src/main.ts, 
 web/      React 19 + Vite 7 + Tailwind 4 + TanStack Query + Zustand + i18next
   src/pages/       Projects, Characters, CharacterEditor, Dialogue, Scenarios(+Editor), Simulations, Memory, Settings
   src/lib/project.ts  useActiveProject (progetto attivo = filtro), useRemoveFromProject
+  src/lib/appearance.ts  stile: caratteri (Courier Prime incluso via @fontsource), dimensione testo, accento con contrasto AA automatico
   src/components/chat/  ChatWorkspace (streaming SSE), MessageItem, Inspector
   src/i18n/locales/     it.json (riferimento), en, fr, es, de, pt (stesse chiavi; test di parità; fr/es/de/pt caricati su richiesta)
 docs/     architecture.md, export-format.md
@@ -86,11 +87,11 @@ Variabili: `PERSONA_DATA_DIR` (default `./data`), `PERSONA_PORT` (4317), `PERSON
 - Il provider mock riconosce `params.purpose` (`character`, `analysis`, `summarize`, `extract`, `title`, `turn`, `consistency`, `test`) per risposte deterministiche; i suoi embedding usano un piccolo dizionario multilingue di concetti (solo per i test).
 - Migrazioni: modificare `schema.ts` → `npm run db:generate`; SQL personalizzato (FTS, trigger) con `npx drizzle-kit generate --custom`. Non modificare migrazioni già rilasciate.
 - Ogni nuova funzionalità backend ha un test in `server/test/` usando `createTestEnv()` (provider mock predefinito). Non dichiarare funzionalità complete senza test eseguiti.
-- UI sobria: token colore in `web/src/index.css` (`bg-panel`, `text-muted`, `border-border`, `text-accent`, …), niente animazioni superflue.
+- UI sobria: token colore in `web/src/index.css` (`bg-panel`, `text-muted`, `border-border`, `text-accent`, …), niente animazioni superflue. Non usare colori d'accento fissi: sempre i token (`--accent*` sono sostituibili dall'utente). Dimensioni in `rem` (la dimensione del testo scala la radice); i testi lunghi usano `font-text`/`.prose-msg`/`textarea` (carattere dei testi), il resto eredita il carattere dell'interfaccia. Nessun font da CDN: solo pacchetti inclusi nel bundle.
 
 ## Stato attuale (v0.3.0 + progetti)
 
-Implementato e testato: fasi 1–6 — fondazioni, personaggi, memoria, scenari, simulazioni (turni manuali, rotazione, regia automatica), recupero semantico ibrido con embedding locali, PDF nella base di conoscenza, export/import di personaggi e scenari, backup/restore, app desktop Electron (Linux, headless), interfaccia in 6 lingue, indicatore di disponibilità del motore. Progetti (storie): divisione di personaggi/scenari/simulazioni per progetto, progetto attivo, salvataggio/apertura su file (`persona.project`), migrazione automatica dei dati esistenti in un progetto predefinito. Import/export dei personaggi con cronologia dell'identità, opzioni di importazione e messaggi chiari per file del tipo sbagliato. 81 test server + 20 test web; smoke E2E Playwright (23 passaggi) e smoke desktop con provider mock.
+Implementato e testato: fasi 1–6 — fondazioni, personaggi, memoria, scenari, simulazioni (turni manuali, rotazione, regia automatica), recupero semantico ibrido con embedding locali, PDF nella base di conoscenza, export/import di personaggi e scenari, backup/restore, app desktop Electron (Linux, headless), interfaccia in 6 lingue, indicatore di disponibilità del motore. Progetti (storie): divisione di personaggi/scenari/simulazioni per progetto, progetto attivo, salvataggio/apertura su file (`persona.project`), migrazione automatica dei dati esistenti in un progetto predefinito. Import/export dei personaggi con cronologia dell'identità, opzioni di importazione e messaggi chiari per file del tipo sbagliato. Impostazioni di stile: caratteri (anche macchina da scrivere), dimensione del testo, colore d'accento. 84 test server + 24 test web; smoke E2E Playwright (24 passaggi) e smoke desktop con provider mock.
 
 Installer desktop: le release pubblicano l'installer Windows, generato e verificato (smoke test dell'app impacchettata) dal workflow di release.
 

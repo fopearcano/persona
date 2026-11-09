@@ -790,5 +790,44 @@
     "isProject": "This file contains a project: open it from Projects → Open from file.",
     "notPersona": "This file is not a PERSONA export.",
     "newerVersion": "This file was created by a newer version of PERSONA (format v{{version}}, supported up to v{{supported}}). Update the app to open it."
+  },
+  "style": {
+    "title": "Style",
+    "fontUi": "Interface font",
+    "fontText": "Text font",
+    "fontTextHelp": "Conversations, text fields and memories. “Typewriter” uses Courier Prime, bundled with the app.",
+    "fonts": {
+      "system": "System (sans-serif)",
+      "serif": "Serif",
+      "typewriter": "Typewriter",
+      "mono": "Monospace"
+    },
+    "textSize": "Text size",
+    "sizes": {
+      "small": "Small",
+      "normal": "Normal",
+      "large": "Large",
+      "xlarge": "Extra large"
+    },
+    "accent": "Accent color",
+    "accentHelp": "The color is adjusted automatically to stay readable in both the light and the dark theme.",
+    "accents": {
+      "default": "Default (green in dark theme, orange in light)",
+      "green": "Green",
+      "orange": "Orange",
+      "blue": "Blue",
+      "violet": "Violet",
+      "rose": "Red",
+      "teal": "Teal",
+      "amber": "Amber",
+      "graphite": "Graphite",
+      "custom": "Custom"
+    },
+    "customColor": "Choose a custom color",
+    "preview": "Preview",
+    "previewText": "“Binary stars have been dancing together for billions of years,” said Irina, without looking up from her notebook.",
+    "previewAction": "Primary action",
+    "previewLink": "Link",
+    "reset": "Restore the default style"
   }
 }

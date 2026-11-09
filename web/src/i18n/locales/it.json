@@ -790,5 +790,44 @@
     "isProject": "Questo file contiene un progetto: aprilo da Progetti → Apri da file.",
     "notPersona": "Il file non è un'esportazione di PERSONA.",
     "newerVersion": "Il file è stato creato da una versione più recente di PERSONA (formato v{{version}}, supportato fino a v{{supported}}). Aggiorna l'applicazione per aprirlo."
+  },
+  "style": {
+    "title": "Stile",
+    "fontUi": "Carattere dell'interfaccia",
+    "fontText": "Carattere dei testi",
+    "fontTextHelp": "Conversazioni, campi di testo e memorie. «Macchina da scrivere» usa Courier Prime, incluso nell'app.",
+    "fonts": {
+      "system": "Sistema (senza grazie)",
+      "serif": "Con grazie",
+      "typewriter": "Macchina da scrivere",
+      "mono": "Monospaziato"
+    },
+    "textSize": "Dimensione del testo",
+    "sizes": {
+      "small": "Piccola",
+      "normal": "Normale",
+      "large": "Grande",
+      "xlarge": "Molto grande"
+    },
+    "accent": "Colore d'accento",
+    "accentHelp": "Il colore viene adattato automaticamente per restare leggibile sia nel tema chiaro sia in quello scuro.",
+    "accents": {
+      "default": "Predefinito (verde nel tema scuro, arancione nel chiaro)",
+      "green": "Verde",
+      "orange": "Arancione",
+      "blue": "Blu",
+      "violet": "Viola",
+      "rose": "Rosso",
+      "teal": "Verde acqua",
+      "amber": "Ambra",
+      "graphite": "Grafite",
+      "custom": "Personalizzato"
+    },
+    "customColor": "Scegli un colore personalizzato",
+    "preview": "Anteprima",
+    "previewText": "«Le stelle binarie danzano insieme da miliardi di anni», disse Irina, senza alzare gli occhi dal taccuino.",
+    "previewAction": "Azione principale",
+    "previewLink": "Collegamento",
+    "reset": "Ripristina lo stile predefinito"
   }
 }

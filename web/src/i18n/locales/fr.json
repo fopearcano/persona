@@ -790,5 +790,44 @@
     "isProject": "Ce fichier contient un projet : ouvrez-le depuis Projets → Ouvrir depuis un fichier.",
     "notPersona": "Ce fichier n'est pas un export de PERSONA.",
     "newerVersion": "Ce fichier a été créé par une version plus récente de PERSONA (format v{{version}}, pris en charge jusqu'à v{{supported}}). Mettez l'application à jour pour l'ouvrir."
+  },
+  "style": {
+    "title": "Style",
+    "fontUi": "Police de l'interface",
+    "fontText": "Police des textes",
+    "fontTextHelp": "Conversations, champs de texte et souvenirs. « Machine à écrire » utilise Courier Prime, inclus dans l'application.",
+    "fonts": {
+      "system": "Système (sans empattement)",
+      "serif": "Avec empattement",
+      "typewriter": "Machine à écrire",
+      "mono": "Chasse fixe"
+    },
+    "textSize": "Taille du texte",
+    "sizes": {
+      "small": "Petite",
+      "normal": "Normale",
+      "large": "Grande",
+      "xlarge": "Très grande"
+    },
+    "accent": "Couleur d'accent",
+    "accentHelp": "La couleur est ajustée automatiquement pour rester lisible avec le thème clair comme avec le thème sombre.",
+    "accents": {
+      "default": "Par défaut (vert en thème sombre, orange en clair)",
+      "green": "Vert",
+      "orange": "Orange",
+      "blue": "Bleu",
+      "violet": "Violet",
+      "rose": "Rouge",
+      "teal": "Bleu-vert",
+      "amber": "Ambre",
+      "graphite": "Graphite",
+      "custom": "Personnalisée"
+    },
+    "customColor": "Choisir une couleur personnalisée",
+    "preview": "Aperçu",
+    "previewText": "« Les étoiles binaires dansent ensemble depuis des milliards d'années », dit Irina sans lever les yeux de son carnet.",
+    "previewAction": "Action principale",
+    "previewLink": "Lien",
+    "reset": "Rétablir le style par défaut"
   }
 }

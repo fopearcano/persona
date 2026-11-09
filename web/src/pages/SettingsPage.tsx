@@ -1,5 +1,9 @@
 import type {
+  AccentChoice,
+  AppearancePreferences,
   BackupInfo,
+  FontChoice,
+  TextSize,
   ConnectionTestResult,
   EmbeddingStatus,
   EmbeddingTestResult,
@@ -10,9 +14,9 @@ import type {
   ProviderType,
   Theme,
 } from '@persona/shared/client';
-import { PLANNED_UI_LANGUAGES, PROVIDER_TYPES, UI_LANGUAGES } from '@persona/shared/client';
+import { ACCENT_CHOICES, FONT_CHOICES, PLANNED_UI_LANGUAGES, PROVIDER_TYPES, TEXT_SIZES, UI_LANGUAGES } from '@persona/shared/client';
 import { useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, DatabaseBackup, Download, Plug, Plus, RefreshCw, RotateCcw, Save, Search, Sparkles, Star, Trash2, Upload, XCircle } from 'lucide-react';
+import { Check, CheckCircle2, DatabaseBackup, Download, Plug, Plus, RefreshCw, RotateCcw, Save, Search, Sparkles, Star, Trash2, Upload, XCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -20,6 +24,7 @@ import { api, downloadUrl } from '../api/client';
 import { qk, useBackups, useInfo, useInvalidate, useModelConfigs, usePreferences } from '../api/hooks';
 import { LanguageSelect } from '../components/LanguageSelect';
 import { Badge, Button, Card, Checkbox, ErrorBox, Field, IconButton, Input, PageHeader, Segmented, Select, Spinner, useErrorText } from '../components/ui';
+import { ACCENT_PRESETS, DEFAULT_APPEARANCE, FONT_STACKS, accentBase, accentTokens } from '../lib/appearance';
 import { formatBytes, formatDateTime, languageLabel, nativeLanguageLabel } from '../lib/format';
 import { useUi } from '../stores/ui';
 
@@ -50,6 +55,7 @@ export function SettingsPage() {
       ) : (
         <div className="mx-auto flex max-w-5xl flex-col gap-5 px-6 py-5">
           <AppearanceCard prefs={prefs} />
+          <StyleCard />
           <ModelsCard />
           <MemoryContextCard prefs={prefs} />
           <EmbeddingsCard prefs={prefs} />
@@ -102,6 +108,133 @@ function AppearanceCard({ prefs }: { prefs: Preferences }) {
         <Field label={t('settings.conversationLanguage')} help={t('settings.conversationLanguageHelp')}>
           <LanguageSelect value={prefs.conversationLanguage} allowAuto onChange={(v) => void save({ conversationLanguage: v ?? 'auto' })} />
         </Field>
+      </div>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+/** Tema effettivo (per mostrare i campioni di colore come appariranno). */
+function useResolvedTheme(): 'light' | 'dark' {
+  const theme = useUi((s) => s.theme);
+  if (theme !== 'system') return theme;
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+/** Stile: caratteri, dimensione del testo e colore d'accento (applicati subito, salvati sul backend). */
+function StyleCard() {
+  const { t } = useTranslation();
+  const appearance = useUi((s) => s.appearance);
+  const setAppearance = useUi((s) => s.setAppearance);
+  const resolved = useResolvedTheme();
+  const customTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const update = (patch: Partial<AppearancePreferences>) => setAppearance(patch);
+  const swatch = (choice: AccentChoice) => {
+    if (choice === 'default') {
+      const d = ACCENT_PRESETS.default;
+      return `linear-gradient(135deg, ${accentTokens(d.dark, 'dark').accent} 50%, ${accentTokens(d.light, 'light').accent} 50%)`;
+    }
+    const base = accentBase({ ...appearance, accent: choice });
+    return accentTokens(resolved === 'dark' ? base.dark : base.light, resolved).accent;
+  };
+  const customValue = appearance.accentCustom ?? ACCENT_PRESETS.violet.dark;
+
+  return (
+    <Card
+      title={t('style.title')}
+      actions={
+        <Button size="sm" variant="ghost" icon={<RotateCcw className="size-3.5" />} onClick={() => update(DEFAULT_APPEARANCE)}>
+          {t('style.reset')}
+        </Button>
+      }
+    >
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_20rem]">
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Field label={t('style.fontUi')}>
+              <Select value={appearance.fontUi} onChange={(e) => update({ fontUi: e.target.value as FontChoice })}>
+                {FONT_CHOICES.map((f) => (
+                  <option key={f} value={f} style={{ fontFamily: FONT_STACKS[f] }}>
+                    {t(`style.fonts.${f}`)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label={t('style.fontText')} help={t('style.fontTextHelp')}>
+              <Select value={appearance.fontText} onChange={(e) => update({ fontText: e.target.value as FontChoice })}>
+                {FONT_CHOICES.map((f) => (
+                  <option key={f} value={f} style={{ fontFamily: FONT_STACKS[f] }}>
+                    {t(`style.fonts.${f}`)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <Field group label={t('style.textSize')}>
+            <Segmented<TextSize>
+              label={t('style.textSize')}
+              value={appearance.textSize}
+              onChange={(v) => update({ textSize: v })}
+              options={TEXT_SIZES.map((id) => ({ id, label: t(`style.sizes.${id}`) }))}
+            />
+          </Field>
+          <Field group label={t('style.accent')} help={t('style.accentHelp')}>
+            <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('style.accent')}>
+              {ACCENT_CHOICES.filter((c) => c !== 'custom').map((c) => {
+                const selected = appearance.accent === c;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-pressed={selected}
+                    aria-label={t(`style.accents.${c}`)}
+                    title={t(`style.accents.${c}`)}
+                    onClick={() => update({ accent: c })}
+                    className={`flex size-8 items-center justify-center rounded-full border ${selected ? 'border-text ring-2 ring-text/40' : 'border-border'}`}
+                    style={{ background: swatch(c) }}
+                  >
+                    {selected && <Check className="size-4 text-white mix-blend-difference" aria-hidden />}
+                  </button>
+                );
+              })}
+              <label
+                className={`flex h-8 items-center gap-2 rounded-full border py-0 pr-3 pl-1 text-xs ${appearance.accent === 'custom' ? 'border-text ring-2 ring-text/40' : 'border-border'}`}
+                title={t('style.customColor')}
+              >
+                <input
+                  type="color"
+                  aria-label={t('style.customColor')}
+                  className="size-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                  value={customValue}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    // Anteprima immediata; salvataggio sul backend al termine della scelta.
+                    setAppearance({ accent: 'custom', accentCustom: v }, { persist: false });
+                    if (customTimer.current) clearTimeout(customTimer.current);
+                    customTimer.current = setTimeout(() => setAppearance({ accent: 'custom', accentCustom: v }), 400);
+                  }}
+                />
+                {t('style.accents.custom')}
+              </label>
+            </div>
+          </Field>
+        </div>
+        <div className="flex flex-col gap-2" aria-label={t('style.preview')}>
+          <span className="text-xs font-medium text-muted">{t('style.preview')}</span>
+          <div className="flex flex-col gap-3 rounded-lg border border-border bg-bg p-3">
+            <div className="prose-msg rounded-md bg-panel-2 px-3 py-2">{t('style.previewText')}</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="primary">
+                {t('style.previewAction')}
+              </Button>
+              <span className="rounded-md bg-accent-soft px-2 py-1 text-xs text-accent">{t('nav.characters')}</span>
+              <a href="#preview" onClick={(e) => e.preventDefault()} className="text-sm text-accent underline">
+                {t('style.previewLink')}
+              </a>
+            </div>
+          </div>
+        </div>
       </div>
     </Card>
   );

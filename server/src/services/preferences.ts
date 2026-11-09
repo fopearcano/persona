@@ -9,6 +9,13 @@ export const DEFAULT_PREFERENCES: Preferences = {
   activeProjectId: null,
   uiLanguage: 'it',
   theme: 'dark',
+  appearance: {
+    fontUi: 'system',
+    fontText: 'system',
+    textSize: 'normal',
+    accent: 'default',
+    accentCustom: null,
+  },
   conversationLanguage: 'auto',
   defaultModelConfigId: null,
   memory: {
@@ -36,6 +43,9 @@ export const DEFAULT_PREFERENCES: Preferences = {
 };
 
 const KEY = 'preferences';
+/** Gruppi di preferenze aggiornati per unione (un aggiornamento parziale non azzera gli altri campi). */
+const NESTED = new Set(['appearance', 'memory', 'context', 'embeddings']);
+const stripUndefined = <T extends object>(o: T): Partial<T> => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>;
 
 export function getPreferences(ctx: AppContext): Preferences {
   const row = ctx.dbm.db.select().from(userPreferences).where(eq(userPreferences.key, KEY)).get();
@@ -43,6 +53,7 @@ export function getPreferences(ctx: AppContext): Preferences {
   return {
     ...DEFAULT_PREFERENCES,
     ...stored,
+    appearance: { ...DEFAULT_PREFERENCES.appearance, ...(stored.appearance ?? {}) },
     memory: { ...DEFAULT_PREFERENCES.memory, ...(stored.memory ?? {}) },
     context: { ...DEFAULT_PREFERENCES.context, ...(stored.context ?? {}) },
     embeddings: { ...DEFAULT_PREFERENCES.embeddings, ...(stored.embeddings ?? {}) },
@@ -55,8 +66,9 @@ export function updatePreferences(ctx: AppContext, input: PreferencesUpdate): Pr
   const next: Preferences = {
     ...current,
     ...Object.fromEntries(
-      Object.entries(patch).filter(([k, v]) => v !== undefined && k !== 'memory' && k !== 'context' && k !== 'embeddings'),
+      Object.entries(patch).filter(([k, v]) => v !== undefined && !NESTED.has(k)),
     ),
+    appearance: { ...current.appearance, ...stripUndefined(patch.appearance ?? {}) },
     memory: { ...current.memory, ...(patch.memory ?? {}) },
     context: { ...current.context, ...(patch.context ?? {}) },
     embeddings: { ...current.embeddings, ...(patch.embeddings ?? {}) },

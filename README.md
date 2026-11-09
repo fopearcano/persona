@@ -13,6 +13,8 @@ Nessun account, nessun abbonamento, nessuna telemetria. Tutti i dati restano in 
 
 Interfaccia disponibile in **italiano** (predefinita), inglese, francese, spagnolo, tedesco e portoghese; i personaggi possono conversare in qualsiasi lingua supportata dal modello.
 
+Lo stile è personalizzabile in **Impostazioni → Stile**: tema chiaro o scuro, carattere dell'interfaccia e dei testi (di sistema, con grazie, **macchina da scrivere** o monospaziato), dimensione del testo e colore d'accento (preimpostati o personalizzato, adattato automaticamente per restare leggibile in entrambi i temi).
+
 ---
 
 ## Requisiti
@@ -167,6 +169,10 @@ Monorepo npm: `shared/` (tipi e schemi), `server/` (Fastify, SQLite, Drizzle, se
 - La competenza linguistica e specialistica del personaggio è simulata ed è limitata dalle reali capacità del modello scelto.
 - Modificare un messaggio non rielabora le memorie già estratte da quel messaggio.
 - Le conversazioni del laboratorio appartengono al personaggio, non al progetto: un personaggio condiviso tra più storie ha un'unica identità, un'unica memoria personale e le stesse conversazioni di laboratorio in tutte. Solo scenari, sessioni, simulazioni e memorie contestuali sono separati per progetto.
+
+## Crediti
+
+- Carattere «macchina da scrivere»: [Courier Prime](https://quoteunquoteapps.com/courierprime/) di Alan Dague-Greene, licenza SIL Open Font License 1.1, incluso nell'app tramite il pacchetto `@fontsource/courier-prime` (nessun download durante l'uso). Copre gli alfabeti latini; per gli altri (es. cirillico) si usa Courier di sistema.
 
 ## Roadmap
 

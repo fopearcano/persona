@@ -790,5 +790,44 @@
     "isProject": "Este arquivo contém um projeto: abra-o em Projetos → Abrir de arquivo.",
     "notPersona": "Este arquivo não é uma exportação do PERSONA.",
     "newerVersion": "Este arquivo foi criado por uma versão mais recente do PERSONA (formato v{{version}}, suportado até v{{supported}}). Atualize o aplicativo para abri-lo."
+  },
+  "style": {
+    "title": "Estilo",
+    "fontUi": "Fonte da interface",
+    "fontText": "Fonte dos textos",
+    "fontTextHelp": "Conversas, campos de texto e memórias. “Máquina de escrever” usa Courier Prime, incluída no aplicativo.",
+    "fonts": {
+      "system": "Sistema (sem serifa)",
+      "serif": "Com serifa",
+      "typewriter": "Máquina de escrever",
+      "mono": "Monoespaçada"
+    },
+    "textSize": "Tamanho do texto",
+    "sizes": {
+      "small": "Pequeno",
+      "normal": "Normal",
+      "large": "Grande",
+      "xlarge": "Muito grande"
+    },
+    "accent": "Cor de destaque",
+    "accentHelp": "A cor é ajustada automaticamente para continuar legível tanto no tema claro quanto no escuro.",
+    "accents": {
+      "default": "Padrão (verde no tema escuro, laranja no claro)",
+      "green": "Verde",
+      "orange": "Laranja",
+      "blue": "Azul",
+      "violet": "Violeta",
+      "rose": "Vermelho",
+      "teal": "Verde-azulado",
+      "amber": "Âmbar",
+      "graphite": "Grafite",
+      "custom": "Personalizada"
+    },
+    "customColor": "Escolher uma cor personalizada",
+    "preview": "Pré-visualização",
+    "previewText": "“As estrelas binárias dançam juntas há bilhões de anos”, disse Irina, sem tirar os olhos do caderno.",
+    "previewAction": "Ação principal",
+    "previewLink": "Link",
+    "reset": "Restaurar o estilo padrão"
   }
 }

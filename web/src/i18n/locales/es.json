@@ -790,5 +790,44 @@
     "isProject": "Este archivo contiene un proyecto: ábrelo desde Proyectos → Abrir desde archivo.",
     "notPersona": "Este archivo no es una exportación de PERSONA.",
     "newerVersion": "Este archivo fue creado por una versión más reciente de PERSONA (formato v{{version}}, compatible hasta v{{supported}}). Actualiza la aplicación para abrirlo."
+  },
+  "style": {
+    "title": "Estilo",
+    "fontUi": "Tipografía de la interfaz",
+    "fontText": "Tipografía de los textos",
+    "fontTextHelp": "Conversaciones, campos de texto y recuerdos. «Máquina de escribir» usa Courier Prime, incluida en la aplicación.",
+    "fonts": {
+      "system": "Sistema (sin serifa)",
+      "serif": "Con serifa",
+      "typewriter": "Máquina de escribir",
+      "mono": "Monoespaciada"
+    },
+    "textSize": "Tamaño del texto",
+    "sizes": {
+      "small": "Pequeño",
+      "normal": "Normal",
+      "large": "Grande",
+      "xlarge": "Muy grande"
+    },
+    "accent": "Color de acento",
+    "accentHelp": "El color se ajusta automáticamente para seguir siendo legible tanto en el tema claro como en el oscuro.",
+    "accents": {
+      "default": "Predeterminado (verde en tema oscuro, naranja en claro)",
+      "green": "Verde",
+      "orange": "Naranja",
+      "blue": "Azul",
+      "violet": "Violeta",
+      "rose": "Rojo",
+      "teal": "Verde azulado",
+      "amber": "Ámbar",
+      "graphite": "Grafito",
+      "custom": "Personalizado"
+    },
+    "customColor": "Elegir un color personalizado",
+    "preview": "Vista previa",
+    "previewText": "«Las estrellas binarias llevan miles de millones de años bailando juntas», dijo Irina, sin levantar la vista del cuaderno.",
+    "previewAction": "Acción principal",
+    "previewLink": "Enlace",
+    "reset": "Restablecer el estilo predeterminado"
   }
 }

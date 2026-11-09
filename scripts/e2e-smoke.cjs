@@ -294,6 +294,31 @@ mkdirSync(SHOTS, { recursive: true });
     await page.screenshot({ path: `${SHOTS}/import-wrong-file.png` });
     await page.keyboard.press('Escape');
   });
+  await step('style: typewriter font, accent color, text size', async () => {
+    await page.goto(BASE + '/settings');
+    const card = page.locator('section', { has: page.getByRole('heading', { name: 'Stile' }) });
+    await card.getByLabel('Carattere dei testi').selectOption('typewriter');
+    await card.getByRole('button', { name: 'Viola' }).click();
+    await card.getByRole('radio', { name: 'Grande', exact: true }).click();
+    const read = () =>
+      page.evaluate(() => ({
+        text: getComputedStyle(document.querySelector('.prose-msg')).fontFamily,
+        accent: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),
+        size: getComputedStyle(document.documentElement).fontSize,
+      }));
+    const before = await read();
+    if (!before.text.startsWith('"Courier Prime"') || before.accent !== '#c4b5fd' || before.size !== '18px') throw new Error(JSON.stringify(before));
+    if (!(await page.evaluate(async () => (await document.fonts.load('16px "Courier Prime"')).length > 0))) throw new Error('typewriter font not bundled');
+    await page.waitForTimeout(300);
+    await card.screenshot({ path: `${SHOTS}/style.png` });
+    // Salvato sul backend: sopravvive al ricaricamento anche senza la copia locale.
+    await page.evaluate(() => localStorage.removeItem('persona.appearance'));
+    await page.reload();
+    await card.waitFor();
+    await page.waitForFunction(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() === '#c4b5fd');
+    await card.getByRole('button', { name: 'Ripristina lo stile predefinito' }).click();
+    await page.waitForFunction(() => getComputedStyle(document.documentElement).fontSize === '16px');
+  });
   await step('english ui', async () => {
     await page.goto(BASE + '/settings');
     await page.getByLabel("Lingua dell'interfaccia").selectOption('en');

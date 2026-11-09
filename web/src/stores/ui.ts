@@ -1,10 +1,21 @@
-import type { Theme } from '@persona/shared/client';
+import type { AppearancePreferences, Theme } from '@persona/shared/client';
 import { create } from 'zustand';
 import { api } from '../api/client';
 import { setUiLanguage } from '../i18n';
+import { applyAppearance, normalizeAppearance } from '../lib/appearance';
 
 const THEME_KEY = 'persona.theme';
 const PROJECT_KEY = 'persona.activeProject';
+const APPEARANCE_KEY = 'persona.appearance';
+
+/** Copia locale dello stile: applicata prima del primo disegno, poi allineata al backend. */
+function readAppearance(): AppearancePreferences {
+  try {
+    return normalizeAppearance(JSON.parse(localStorage.getItem(APPEARANCE_KEY) ?? 'null'));
+  } catch {
+    return normalizeAppearance(null);
+  }
+}
 
 function readProject(): string | null {
   try {
@@ -38,6 +49,9 @@ export interface Toast {
 interface UiState {
   theme: Theme;
   setTheme(theme: Theme): void;
+  /** Caratteri, dimensione del testo e colore d'accento. */
+  appearance: AppearancePreferences;
+  setAppearance(patch: Partial<AppearancePreferences>, opts?: { persist?: boolean }): void;
   setLanguage(lang: string): void;
   toasts: Toast[];
   toast(text: string, kind?: Toast['kind']): void;
@@ -62,6 +76,18 @@ export const useUi = create<UiState>((set, get) => ({
     }
     applyTheme(theme);
     set({ theme });
+  },
+  appearance: readAppearance(),
+  setAppearance(patch, opts = {}) {
+    const appearance = normalizeAppearance({ ...get().appearance, ...patch });
+    try {
+      localStorage.setItem(APPEARANCE_KEY, JSON.stringify(appearance));
+    } catch {
+      /* ignora */
+    }
+    applyAppearance(appearance);
+    set({ appearance });
+    if (opts.persist !== false) void api.put('/api/preferences', { appearance: patch }).catch(() => undefined);
   },
   setLanguage(lang) {
     void setUiLanguage(lang);

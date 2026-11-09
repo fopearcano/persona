@@ -89,6 +89,15 @@ export const PLANNED_UI_LANGUAGES = [] as const;
 export const THEMES = ['dark', 'light', 'system'] as const;
 export type Theme = (typeof THEMES)[number];
 
+/** Caratteri disponibili per interfaccia e testi (typewriter = Courier Prime, incluso nell'app). */
+export const FONT_CHOICES = ['system', 'serif', 'typewriter', 'mono'] as const;
+export type FontChoice = (typeof FONT_CHOICES)[number];
+export const TEXT_SIZES = ['small', 'normal', 'large', 'xlarge'] as const;
+export type TextSize = (typeof TEXT_SIZES)[number];
+/** Colori d'accento predefiniti; 'default' = verde nel tema scuro, arancione nel chiaro. */
+export const ACCENT_CHOICES = ['default', 'green', 'orange', 'blue', 'violet', 'rose', 'teal', 'amber', 'graphite', 'custom'] as const;
+export type AccentChoice = (typeof ACCENT_CHOICES)[number];
+
 /** Valore speciale: il personaggio risponde nella lingua usata dall'autore. */
 export const AUTO_LANGUAGE = 'auto';
 

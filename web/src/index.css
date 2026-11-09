@@ -2,8 +2,11 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Palette sobria: i token cambiano tra tema chiaro e scuro. */
+/* Palette sobria: i token cambiano tra tema chiaro e scuro.
+   --accent* e --app-font-* possono essere sostituiti dalle impostazioni di stile (lib/appearance.ts). */
 :root {
+  --app-font-ui: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  --app-font-text: var(--app-font-ui);
   --bg: #f6f6f4;
   --panel: #ffffff;
   --panel-2: #f0f0ed;
@@ -54,7 +57,8 @@
   --color-ok: var(--ok);
   --color-analysis: var(--analysis);
   --color-narration: var(--narration);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  --font-sans: var(--app-font-ui);
+  --font-text: var(--app-font-text);
   --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
 }
 
@@ -67,8 +71,9 @@ body,
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-sans);
-  font-size: 14px;
+  font-family: var(--app-font-ui);
+  /* In rem: segue la dimensione del testo scelta nelle impostazioni. */
+  font-size: 0.875rem;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
@@ -85,6 +90,19 @@ body {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+}
+
+.prose-msg {
+  font-family: var(--app-font-text);
+}
+/* I campi di testo usano il carattere dei testi; i controlli ereditano quello dell'interfaccia. */
+textarea {
+  font-family: var(--app-font-text);
+}
+button,
+input,
+select {
+  font-family: inherit;
 }
 
 .prose-msg p + p {

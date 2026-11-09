@@ -13,6 +13,9 @@ import {
   PROJECT_STATUSES,
   SCENARIO_STATUSES,
   THEMES,
+  FONT_CHOICES,
+  TEXT_SIZES,
+  ACCENT_CHOICES,
   TRAIT_CATEGORIES,
   TURN_MODES,
 } from './constants.js';
@@ -364,6 +367,20 @@ export const preferencesUpdateSchema = z.object({
   activeProjectId: z.string().min(1).nullable().optional(),
   uiLanguage: languageCodeSchema.optional(),
   theme: z.enum(THEMES).optional(),
+  appearance: z
+    .object({
+      fontUi: z.enum(FONT_CHOICES),
+      fontText: z.enum(FONT_CHOICES),
+      textSize: z.enum(TEXT_SIZES),
+      accent: z.enum(ACCENT_CHOICES),
+      accentCustom: z
+        .string()
+        .regex(/^#[0-9a-fA-F]{6}$/, 'Colore non valido (#rrggbb)')
+        .transform((v) => v.toLowerCase())
+        .nullable(),
+    })
+    .partial()
+    .optional(),
   conversationLanguage: conversationLanguageSchema.optional(),
   defaultModelConfigId: z.string().nullable().optional(),
   memory: z

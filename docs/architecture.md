@@ -76,6 +76,13 @@ Gestione dei turni (`services/turns.ts`, `conversations.turn_mode`):
 - `round-robin`: partecipante successivo all'ultimo che ha parlato;
 - `auto`: un prompt di regia (`turnSelectionPrompt`) fornisce partecipanti, ruoli, obiettivi e trascrizione recente e chiede al modello `{"speaker","reason"}`; risposta non valida o errore → rotazione. La scelta e il motivo sono salvati in `contextMeta.turnSelection`.
 
+## Stile dell'interfaccia
+
+- Preferenze in `preferences.appearance` (`fontUi`, `fontText`, `textSize`, `accent`, `accentCustom`), copiate anche in `localStorage` (`persona.appearance`) per applicarle prima del primo disegno; all'avvio prevale il valore del backend.
+- `web/src/lib/appearance.ts` applica: le variabili `--app-font-ui` (corpo dell'interfaccia) e `--app-font-text` (messaggi `.prose-msg`, `textarea`, classe `font-text` per le memorie); la dimensione del carattere radice (tutta l'interfaccia è in `rem`, quindi scala insieme); un foglio di stile generato con `--accent`, `--accent-soft`, `--accent-fg` per `html:root` e `html.dark`, così il cambio di tema non richiede ricalcoli.
+- Leggibilità garantita: `accentTokens` scurisce (tema chiaro) o schiarisce (tema scuro) il colore scelto finché il testo in accento raggiunge il contrasto WCAG AA 4,5:1 su sfondo, pannelli e sfondo tenue degli elementi attivi; il testo dei pulsanti principali è bianco o quasi nero, il più contrastato (verificato da `lib/appearance.test.ts` anche con colori estremi).
+- Il carattere «macchina da scrivere» è Courier Prime (OFL 1.1), incluso nel bundle tramite `@fontsource/courier-prime` e caricato dal browser solo quando usato.
+
 ## Multilingua
 
 - **Interfaccia**: i18next (`web/src/i18n`): italiano (predefinito e riferimento delle chiavi) e inglese nel bundle; francese, spagnolo, tedesco e portoghese caricati su richiesta. Preferenza salvata sul backend e in `localStorage`; il titolo provvisorio delle conversazioni segue la lingua dell'interfaccia.
